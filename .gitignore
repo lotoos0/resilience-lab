@@ -221,6 +221,7 @@ backups/
 # === System / cache ===
 .DS_Store
 Thumbs.db
+PROJECT_PLAN_EN.md
 PROJECT_PLAN_PL.md
 TODO.md
 PLAN_TODAY.md

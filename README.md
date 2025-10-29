@@ -1,6 +1,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Milestone](https://img.shields.io/badge/Milestone-M0%20Bootstrap-blue)]()
 [![Project Progress](https://img.shields.io/badge/Progress-0%25-lightgrey)]()
+[![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos/vertical-slice-resilience/actions/workflows/ci.yml)
 
 # 🔬 Resilience Lab
 

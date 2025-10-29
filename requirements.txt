@@ -1,0 +1,21 @@
+# Core dependencies for Resilience Lab
+# Updated: 2025-10-29 (M0 - Bootstrap)
+
+# Web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Database
+psycopg2-binary==2.9.9
+redis==5.0.1
+
+# HTTP client
+httpx==0.25.1
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Linting/formatting (optional, for local dev)
+ruff==0.1.6

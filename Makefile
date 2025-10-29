@@ -55,8 +55,8 @@ dev: ## [DEV] Run local services
 	docker-compose up -d
 
 build: ## [Build] Build docker images
-	docker build -t api:dev services/api
-	docker build -t payments:dev services/payments
+	docker build -t api:dev -f services/api/Dockerfile .
+	docker build -t payments:dev -f services/payments/Dockerfile .
 
 test: ## [Test] Run pytest
 	pytest -v

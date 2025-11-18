@@ -7,8 +7,10 @@
 
 **A Kubernetes "resilience sandbox" for testing cloud-native failure patterns.**
 
-> FastAPI + Envoy + Redis + Prometheus + Loki  
+> FastAPI + Envoy + Redis + Prometheus + Loki
 > Deployable via Helm, observable via Grafana.
+
+---
 
 ## 🧾 License
 

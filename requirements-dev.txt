@@ -1,0 +1,18 @@
+# Development dependencies (lighter than full requirements.txt)
+# For local testing without PostgreSQL/Redis
+
+# Web framework (updated for Python 3.13 support)
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.10.0  # Python 3.13 support
+
+# HTTP client
+httpx==0.25.1
+requests==2.31.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Linting/formatting
+ruff==0.1.6

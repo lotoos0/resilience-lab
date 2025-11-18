@@ -3,11 +3,10 @@ Payments Service - Main entrypoint
 Handles payment processing and persistence.
 """
 
-import os
 import uuid
 from typing import Dict, Any
 from fastapi import FastAPI, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 app = FastAPI(title="Resilience Lab - Payments Service")
 
@@ -16,8 +15,8 @@ payments_store: Dict[str, Dict[str, Any]] = {}
 
 
 class PaymentProcessRequest(BaseModel):
-    amount: float
-    currency: str = "USD"
+    amount: float = Field(gt=0, description="Payment amount must be greater than 0")
+    currency: str = Field(default="USD", pattern="^[A-Z]{3}$", description="ISO 4217 currency code")
     tenant_id: str = "default"
 
 
@@ -73,7 +72,7 @@ async def get_payment(payment_id: str) -> Dict[str, Any]:
 
 
 @app.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> Dict[str, Any]:
     """Root endpoint."""
     return {
         "service": "resilience-lab-payments",

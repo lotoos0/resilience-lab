@@ -4,6 +4,8 @@ import pytest
 import requests
 import time
 
+pytestmark = pytest.mark.integration
+
 API_BASE = "http://localhost:8000"
 PAYMENTS_BASE = "http://localhost:8001"
 

@@ -81,11 +81,31 @@ build: ## [Build] Build docker images
 	docker build -t api:dev -f services/api/Dockerfile .
 	docker build -t payments:dev -f services/payments/Dockerfile .
 
-test: ## [Test] Run pytest (uses venv if available, or system python)
+test: ## [Test] Run all tests (uses venv if available)
 	@if [ -d "venv" ]; then \
 		./venv/bin/pytest -v; \
 	elif command -v pytest >/dev/null 2>&1; then \
 		pytest -v; \
+	else \
+		echo "❌ Error: pytest not found. Run: make install"; \
+		exit 1; \
+	fi
+
+test-unit: ## [Test] Run unit tests only (no services required)
+	@if [ -d "venv" ]; then \
+		./venv/bin/pytest -v -m "not integration"; \
+	elif command -v pytest >/dev/null 2>&1; then \
+		pytest -v -m "not integration"; \
+	else \
+		echo "❌ Error: pytest not found. Run: make install"; \
+		exit 1; \
+	fi
+
+test-integration: ## [Test] Run integration tests (requires: make dev)
+	@if [ -d "venv" ]; then \
+		./venv/bin/pytest -v -m integration; \
+	elif command -v pytest >/dev/null 2>&1; then \
+		pytest -v -m integration; \
 	else \
 		echo "❌ Error: pytest not found. Run: make install"; \
 		exit 1; \

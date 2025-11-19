@@ -466,15 +466,18 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 
 ## 🗺️ Roadmap
 
-### ✅ M0 - Bootstrap (Oct 28-31, 2025) - **COMPLETED**
+### ✅ M0 - Bootstrap (Oct 28-31, Nov 17-19, 2025) - **COMPLETED**
 
 - [x] API + Payments services
 - [x] Docker Compose setup
-- [x] Basic CI/CD pipeline
-- [x] Unit + Integration tests
+- [x] Comprehensive CI/CD pipeline (lint, test, integration, build, publish)
+- [x] Unit + Integration tests with pytest
 - [x] Security baseline (non-root, healthchecks)
-- [x] GHCR integration
-- [x] Comprehensive README
+- [x] GHCR integration with automated publishing
+- [x] Comprehensive documentation (6 docs, 3000+ lines)
+  - [x] README, CONTRIBUTING, CODE_OF_CONDUCT
+  - [x] Architecture, Development, Deployment guides
+  - [x] M0 Retrospective
 
 ### 🔜 M1 - Core & CI/CD (Nov 17-25, 2025)
 
@@ -514,12 +517,20 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 
 ## 📚 Additional Resources
 
-- **Documentation**: See `docs/` directory
-- **Architecture Decisions**: `docs/ARCHITECTURE.md` (coming soon)
-- **Contributing Guide**: `CONTRIBUTING.md`
-- **API Documentation**: Available at `/docs` when services are running
-  - API: http://localhost:8000/docs
-  - Payments: http://localhost:8001/docs
+### Documentation
+
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - System architecture, design patterns, ADRs
+- **[Development Guide](docs/DEVELOPMENT.md)** - Setup, coding standards, debugging
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Local and Kubernetes deployment
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute, PR process, commit format
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
+- **[Retrospectives](docs/RETROSPECTIVES.md)** - Milestone retrospectives and lessons learned
+
+### API Documentation
+
+Available when services are running:
+- **API Service**: http://localhost:8000/docs
+- **Payments Service**: http://localhost:8001/docs
 
 ---
 

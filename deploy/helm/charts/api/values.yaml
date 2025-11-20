@@ -1,0 +1,34 @@
+replicaCount: 2
+image:
+  repository: ghcr.io/lotoos0/resilience-lab-api
+  tag: latest
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 8000
+env:
+  - name: DATABASE_URL
+    value: ""
+  - name: REDIS_URL
+    value: ""
+  - name: PAYMENTS_URL
+    value: ""
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 5

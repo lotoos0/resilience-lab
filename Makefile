@@ -81,17 +81,7 @@ build: ## [Build] Build docker images
 	docker build -t api:dev -f services/api/Dockerfile .
 	docker build -t payments:dev -f services/payments/Dockerfile .
 
-test: ## [Test] Run all tests (uses venv if available)
-	@if [ -d "venv" ]; then \
-		./venv/bin/pytest -v; \
-	elif command -v pytest >/dev/null 2>&1; then \
-		pytest -v; \
-	else \
-		echo "❌ Error: pytest not found. Run: make install"; \
-		exit 1; \
-	fi
-
-test-unit: ## [Test] Run unit tests only (no services required)
+test: ## [Test] Run unit tests (no services required)
 	@if [ -d "venv" ]; then \
 		./venv/bin/pytest -v -m "not integration"; \
 	elif command -v pytest >/dev/null 2>&1; then \
@@ -101,7 +91,43 @@ test-unit: ## [Test] Run unit tests only (no services required)
 		exit 1; \
 	fi
 
-test-integration: ## [Test] Run integration tests (requires: make dev)
+test-all: ## [Test] Run ALL tests including integration (requires: make dev)
+	@echo "⚠️  Integration tests require services. Checking if services are running..."
+	@if ! curl -s -f http://localhost:8000/healthz > /dev/null 2>&1 || \
+	    ! curl -s -f http://localhost:8001/healthz > /dev/null 2>&1; then \
+		echo "❌ Error: Services not running. Start with: make dev"; \
+		echo "   Then wait ~30s for services to be healthy before running tests."; \
+		exit 1; \
+	fi
+	@echo "✅ Services are running. Running all tests..."
+	@if [ -d "venv" ]; then \
+		./venv/bin/pytest -v; \
+	elif command -v pytest >/dev/null 2>&1; then \
+		pytest -v; \
+	else \
+		echo "❌ Error: pytest not found. Run: make install"; \
+		exit 1; \
+	fi
+
+test-unit: ## [Test] Run unit tests only (same as 'make test')
+	@if [ -d "venv" ]; then \
+		./venv/bin/pytest -v -m "not integration"; \
+	elif command -v pytest >/dev/null 2>&1; then \
+		pytest -v -m "not integration"; \
+	else \
+		echo "❌ Error: pytest not found. Run: make install"; \
+		exit 1; \
+	fi
+
+test-integration: ## [Test] Run integration tests only (requires: make dev)
+	@echo "⚠️  Integration tests require services. Checking if services are running..."
+	@if ! curl -s -f http://localhost:8000/healthz > /dev/null 2>&1 || \
+	    ! curl -s -f http://localhost:8001/healthz > /dev/null 2>&1; then \
+		echo "❌ Error: Services not running. Start with: make dev"; \
+		echo "   Then wait ~30s for services to be healthy before running tests."; \
+		exit 1; \
+	fi
+	@echo "✅ Services are running. Running integration tests..."
 	@if [ -d "venv" ]; then \
 		./venv/bin/pytest -v -m integration; \
 	elif command -v pytest >/dev/null 2>&1; then \

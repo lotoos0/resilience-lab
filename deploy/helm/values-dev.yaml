@@ -1,0 +1,33 @@
+# Development overrides
+api:
+  replicaCount: 1
+  image:
+    tag: dev
+  env:
+    - name: LOG_LEVEL
+      value: DEBUG
+    - name: DATABASE_URL
+      value: "postgresql://resilience:resilience@postgresql:5432/resilience_db"
+    - name: REDIS_URL
+      value: "redis://redis:6379"
+    - name: PAYMENTS_URL
+      value: "http://resilience-lab-payments:8001"
+payments:
+  replicaCount: 1
+  image:
+    tag: dev
+  env:
+    - name: LOG_LEVEL
+      value: DEBUG
+    - name: DATABASE_URL
+      value: "postgresql://resilience:resilience@postgresql:5432/resilience_db"
+    - name: REDIS_URL
+      value: "redis://redis:6379"
+postgresql:
+  primary:
+    persistence:
+      size: 500Mi
+redis:
+  master:
+    persistence:
+      size: 256Mi

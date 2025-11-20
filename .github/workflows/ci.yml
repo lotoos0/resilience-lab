@@ -1,22 +1,18 @@
 name: CI (Lint + Test + Build)
-
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Cache pip
         uses: actions/cache@v3
         with:
@@ -25,16 +21,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-lint-
             ${{ runner.os }}-pip-
-
       - name: Install ruff
         run: pip install ruff
-
       - name: Lint all services
         run: ruff check services/
-
+  trivy-fs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
   test:
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:16
@@ -45,29 +53,19 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U resilience -d resilience_db"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "pg_isready -U resilience -d resilience_db" --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Cache pip
         uses: actions/cache@v3
         with:
@@ -75,28 +73,22 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
       - name: Run unit tests
         run: pytest -v -m "not integration"
         env:
           DATABASE_URL: postgresql://resilience:resilience@localhost:5432/resilience_db
           REDIS_URL: redis://localhost:6379
-
   integration-test:
     runs-on: ubuntu-latest
     needs: [lint, test]
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Cache pip
         uses: actions/cache@v3
         with:
@@ -104,41 +96,46 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
       - name: Start services with docker compose
         run: docker compose up -d
-
       - name: Wait for services to be healthy
         run: |
           timeout 60 bash -c 'until docker compose ps | grep -q "healthy"; do sleep 2; done' || true
           sleep 10
-
       - name: Check services status
         run: docker compose ps
-
       - name: Run integration tests
         run: pytest -v -m integration
-
       - name: Show logs on failure
         if: failure()
         run: docker compose logs
-
       - name: Stop services
         if: always()
         run: docker compose down
-
   build:
     runs-on: ubuntu-latest
     needs: [lint, test]
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Build API image
-        run: docker build -t resilience-lab-api:test -f services/api/Dockerfile .
-
+        run: |
+          docker build -t resilience-lab-api:test -f services/api/Dockerfile .
+      - name: Run Trivy scanner on API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'resilience-lab-api:test'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
       - name: Build Payments image
-        run: docker build -t resilience-lab-payments:test -f services/payments/Dockerfile .
+        run: |
+          docker build -t resilience-lab-payments:test -f services/payments/Dockerfile .
+      - name: Run Trivy scanner on Payments image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'resilience-lab-payments:test'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'

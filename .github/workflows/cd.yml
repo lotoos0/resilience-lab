@@ -1,0 +1,48 @@
+name: CD
+on:
+  push:
+    branches: [main, develop]
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and Push API
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/resilience-lab-api:${{ github.sha }} -f services/api/Dockerfile .
+          docker tag ghcr.io/${{ github.repository_owner }}/resilience-lab-api:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/resilience-lab-api:latest
+          docker push ghcr.io/${{ github.repository_owner }}/resilience-lab-api:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/resilience-lab-api:latest
+      - name: Build and Push Payments
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/resilience-lab-payments:${{ github.sha }} -f services/payments/Dockerfile .
+          docker tag ghcr.io/${{ github.repository_owner }}/resilience-lab-payments:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/resilience-lab-payments:latest
+          docker push ghcr.io/${{ github.repository_owner }}/resilience-lab-payments:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/resilience-lab-payments:latest
+
+# Helm diff and deploy (optional - for kubernetes deployment)
+# deploy:
+#   runs-on: ubuntu-latest
+#   needs: build-and-push
+#   if: github.ref == 'refs/heads/main'
+#   steps:
+#     - uses: actions/checkout@v4
+#
+#     - name: Install Helm
+#       uses: azure/setup-helm@v3
+#       with:
+#         version: 'latest'
+#
+#     - name: Helm diff
+#       run: |
+#         helm plugin install https://github.com/databus23/helm-diff
+#         helm diff upgrade resilience-lab ./deploy/helm \
+#           --namespace resilience-lab \
+#           --set api.image.tag=${{ github.sha }} \
+#           --set payments.image.tag=${{ github.sha }}

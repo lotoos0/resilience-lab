@@ -1,9 +1,9 @@
 # Core dependencies for Resilience Lab
-# Updated: 2025-11-20 (Security fix: CVE-2024-47874)
+# Updated: 2025-11-20 (Security fixes: CVE-2024-47874, CVE-2025-62727)
 
 # Web framework
-fastapi==0.115.6
-starlette==0.41.3  # Security: CVE-2024-47874 fixed in 0.40.0+
+starlette==0.49.1  # Security: CVE-2025-62727 fixed in 0.49.1
+fastapi  # Let pip resolve latest compatible with starlette 0.49.1
 uvicorn[standard]==0.32.1
 pydantic==2.10.5
 pydantic-core==2.27.2

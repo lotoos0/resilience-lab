@@ -2,7 +2,7 @@
 # Updated: 2025-10-29 (M0 - Bootstrap)
 
 # Web framework
-fastapi==0.104.1
+fastapi==0.110.0
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
 

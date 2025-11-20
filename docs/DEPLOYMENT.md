@@ -639,7 +639,7 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          helm upgrade --install resilience-lab ./deploy/helm/resilience-lab \
+          helm upgrade --install resilience-lab ./deploy/helm \
             --namespace resilience-lab \
             --set image.tag=${{ github.sha }} \
             --atomic \

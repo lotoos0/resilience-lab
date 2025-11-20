@@ -1,10 +1,12 @@
 # Core dependencies for Resilience Lab
-# Updated: 2025-10-29 (M0 - Bootstrap)
+# Updated: 2025-11-20 (Security fix: CVE-2024-47874)
 
 # Web framework
-fastapi==0.110.0
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
+fastapi==0.115.6
+starlette==0.41.3  # Security: CVE-2024-47874 fixed in 0.40.0+
+uvicorn[standard]==0.32.1
+pydantic==2.10.5
+pydantic-core==2.27.2
 
 # Database
 psycopg2-binary==2.9.9

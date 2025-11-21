@@ -43,7 +43,36 @@ END {
 endef
 export AWK_HELP
 
-.PHONY: run down logs logs-api logs-payments clean ps restart 
+# ============================================================================
+# Phony Targets
+# ============================================================================
+
+# Help targets
+.PHONY: help
+
+# Setup targets
+.PHONY: install install-full clean-venv
+
+# Development targets
+.PHONY: dev run down restart ps
+
+# Build targets
+.PHONY: build
+
+# Helm targets
+.PHONY: helm-deps helm-lint helm-up-dev helm-test helm-down
+
+# Test targets
+.PHONY: test test-all test-unit test-integration test-docker lint
+
+# Operations targets
+.PHONY: logs logs-api logs-payments clean
+
+
+
+# ============================================================================
+# Targets
+# ============================================================================ 
 
 help: ## [Help] Show help for targets (grouped)
 	@C=$$(tput cols 2>/dev/null || echo 100); \
@@ -162,7 +191,7 @@ logs-api: ## [OPS] Show logs from API service only
 	docker-compose logs -f api
 
 logs-payments: ## [OPS] Show logs from Payments service only
-	docer-compose logs -f payments 
+	docker-compose logs -f payments 
 
 clean: ## [OPS] Clean up Docker images, containers, volumes
 	docker-compose down -v --remove-orphans
@@ -176,3 +205,24 @@ ps: ## [DEV] Show status of all services
 	docker-compose ps 
 
 restart: down dev ## [DEV] Restart all services
+
+helm-deps: ## [Helm] Build Helm dependencies
+	helm dependency build deploy/helm/
+
+helm-lint:  ## [Helm] Lint Helm chart
+	helm lint deploy/helm/
+
+helm-up-dev: helm-deps  ## [Helm] Install Helm chart (dev environment)
+	helm upgrade --install resilience-lab deploy/helm/ \
+		--values deploy/helm/values-dev.yaml \
+		--namespace resilience-lab \
+		--create-namespace
+
+helm-test:  ## [Helm] Run Helm tests
+	helm test resilience-lab --namespace resilience-lab
+
+helm-down:  ## [Helm] Uninstall Helm release
+	helm uninstall resilience-lab --namespace resilience-lab
+
+rollback-%:  ## [??] Rollback to specific revision (usage: make rollback-1)
+	helm rollback resilience-lab $* --namespace resilience-lab

@@ -18,6 +18,7 @@ Resilience Lab is a hands-on platform for learning and testing cloud-native resi
 
 - [Prerequisites](#-prerequisites)
 - [Quick Start](#-quick-start)
+- [Kubernetes Deployment with Helm](#-kubernetes-deployment-with-helm)
 - [Architecture](#-architecture)
 - [Development](#-development)
 - [Testing](#-testing)
@@ -118,6 +119,333 @@ Expected output:
 
 ```bash
 make down
+```
+
+---
+
+## ☸️ Kubernetes Deployment with Helm
+
+Deploy Resilience Lab to Kubernetes using Helm charts for production-grade orchestration.
+
+### Prerequisites
+
+Before deploying to Kubernetes, ensure you have:
+
+**Required:**
+
+- **kubectl** 1.28+ ([Install kubectl](https://kubernetes.io/docs/tasks/tools/))
+- **Helm** 3.10+ ([Install Helm](https://helm.sh/docs/intro/install/))
+- **Kubernetes cluster** (one of the following):
+  - **k3d** 5.0+ - Lightweight local cluster ([Install k3d](https://k3d.io/#installation))
+  - **minikube** 1.32+ - Local Kubernetes ([Install minikube](https://minikube.sigs.k8s.io/docs/start/))
+  - **kind** 0.20+ - Kubernetes in Docker ([Install kind](https://kind.sigs.k8s.io/docs/user/quick-start/))
+  - **Docker Desktop** - Built-in Kubernetes
+  - **Cloud provider** - GKE, EKS, AKS, etc.
+
+**Verify installation:**
+
+```bash
+kubectl version --client
+helm version
+kubectl cluster-info
+```
+
+### Installation Instructions
+
+#### 1. Create local Kubernetes cluster (optional)
+
+If you don't have a cluster, create one with k3d:
+
+```bash
+# Create a new k3d cluster
+k3d cluster create resilience-cluster \
+  --api-port 6550 \
+  --servers 1 \
+  --agents 2 \
+  --port "8080:80@loadbalancer"
+
+# Verify cluster is running
+kubectl get nodes
+```
+
+Alternative with minikube:
+
+```bash
+# Start minikube
+minikube start --cpus 4 --memory 8192
+
+# Verify cluster
+kubectl get nodes
+```
+
+#### 2. Build Helm dependencies
+
+Build the chart dependencies (API and Payments subcharts):
+
+```bash
+make helm-deps
+```
+
+Or manually:
+
+```bash
+helm dependency build deploy/helm/
+```
+
+#### 3. Deploy to Kubernetes
+
+**Development environment:**
+
+```bash
+# Install with development values
+make helm-up-dev
+```
+
+This command:
+- Creates namespace `resilience-lab`
+- Deploys API service (1 replica)
+- Deploys Payments service (1 replica)
+- Deploys PostgreSQL database
+- Deploys Redis cache
+
+**Production environment:**
+
+```bash
+# Install with production values
+helm upgrade --install resilience-lab deploy/helm/ \
+  --namespace resilience-lab \
+  --create-namespace \
+  --wait \
+  --timeout 5m
+```
+
+**Custom configuration:**
+
+```bash
+# Install with custom values
+helm upgrade --install resilience-lab deploy/helm/ \
+  --namespace resilience-lab \
+  --create-namespace \
+  --set api.replicaCount=3 \
+  --set payments.replicaCount=3 \
+  --set global.imageRegistry=ghcr.io \
+  --wait
+```
+
+#### 4. Verify deployment
+
+```bash
+# Check all pods are running
+kubectl get pods -n resilience-lab
+
+# Expected output:
+# NAME                                    READY   STATUS    RESTARTS   AGE
+# resilience-lab-api-xxxxx                1/1     Running   0          2m
+# resilience-lab-payments-xxxxx           1/1     Running   0          2m
+# resilience-lab-postgresql-0             1/1     Running   0          2m
+# resilience-lab-redis-master-0           1/1     Running   0          2m
+
+# Check services
+kubectl get svc -n resilience-lab
+
+# View logs
+kubectl logs -n resilience-lab -l app.kubernetes.io/name=api
+kubectl logs -n resilience-lab -l app.kubernetes.io/name=payments
+```
+
+### Testing Instructions
+
+#### 1. Port-forward to access services
+
+```bash
+# Forward API service to localhost:8000
+kubectl port-forward -n resilience-lab svc/resilience-lab-api 8000:8000
+
+# In another terminal, forward Payments service
+kubectl port-forward -n resilience-lab svc/resilience-lab-payments 8001:8001
+```
+
+#### 2. Test health endpoints
+
+```bash
+# Test API service
+curl http://localhost:8000/healthz
+
+# Expected output:
+# {"status":"healthy","service":"api"}
+
+# Test Payments service
+curl http://localhost:8001/healthz
+
+# Expected output:
+# {"status":"healthy","service":"payments"}
+```
+
+#### 3. Test payment processing
+
+```bash
+curl -X POST http://localhost:8001/process \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 100, "currency": "USD"}'
+
+# Expected output:
+# {
+#   "payment_id": "uuid-here",
+#   "status": "completed",
+#   "amount": 100.0,
+#   "currency": "USD"
+# }
+```
+
+#### 4. Run Helm tests
+
+```bash
+# Run Helm test suite
+make helm-test
+
+# Or manually:
+helm test resilience-lab --namespace resilience-lab
+```
+
+### Monitoring and Troubleshooting
+
+#### View pod status and logs
+
+```bash
+# Get pod status
+kubectl get pods -n resilience-lab -w
+
+# Describe pod for details
+kubectl describe pod -n resilience-lab <pod-name>
+
+# View logs
+kubectl logs -n resilience-lab <pod-name> --follow
+
+# View logs for all API pods
+kubectl logs -n resilience-lab -l app.kubernetes.io/name=api --all-containers --follow
+```
+
+#### Common issues
+
+**Pods stuck in Pending:**
+
+```bash
+# Check events
+kubectl get events -n resilience-lab --sort-by='.lastTimestamp'
+
+# Check resource availability
+kubectl describe nodes
+```
+
+**ImagePullBackOff errors:**
+
+```bash
+# Check image pull status
+kubectl describe pod -n resilience-lab <pod-name>
+
+# Verify images exist
+docker pull ghcr.io/lotoos0/resilience-lab-api:latest
+docker pull ghcr.io/lotoos0/resilience-lab-payments:latest
+```
+
+### Upgrading the Deployment
+
+```bash
+# Upgrade with new values
+helm upgrade resilience-lab deploy/helm/ \
+  --namespace resilience-lab \
+  --values deploy/helm/values.yaml \
+  --wait
+
+# Rollback to previous version
+make helm-rollback 1
+
+# Or manually:
+helm rollback resilience-lab 1 --namespace resilience-lab
+```
+
+### Uninstallation
+
+```bash
+# Uninstall Helm release
+make helm-down
+
+# Or manually:
+helm uninstall resilience-lab --namespace resilience-lab
+
+# Delete namespace (optional)
+kubectl delete namespace resilience-lab
+
+# Delete k3d cluster (if using k3d)
+k3d cluster delete resilience-cluster
+```
+
+### Advanced Configuration
+
+#### Custom values file
+
+Create a custom values file (`my-values.yaml`):
+
+```yaml
+api:
+  replicaCount: 3
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+payments:
+  replicaCount: 3
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+postgresql:
+  primary:
+    persistence:
+      size: 5Gi
+
+redis:
+  master:
+    persistence:
+      size: 2Gi
+```
+
+Deploy with custom values:
+
+```bash
+helm upgrade --install resilience-lab deploy/helm/ \
+  --namespace resilience-lab \
+  --create-namespace \
+  --values my-values.yaml \
+  --wait
+```
+
+#### Helm chart structure
+
+```
+deploy/helm/
+├── Chart.yaml              # Main chart metadata
+├── Chart.lock              # Dependency lock file
+├── values.yaml             # Default values
+├── values-dev.yaml         # Development overrides
+├── templates/              # Kubernetes manifests
+└── charts/                 # Subcharts
+    ├── api/                # API service chart
+    │   ├── Chart.yaml
+    │   ├── values.yaml
+    │   └── templates/
+    └── payments/           # Payments service chart
+        ├── Chart.yaml
+        ├── values.yaml
+        └── templates/
 ```
 
 ---
@@ -567,4 +895,4 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 
 **Built with ❤️ for cloud-native resilience engineering**
 
-_Last updated: November 18, 2025_
+_Last updated: November 22, 2025_

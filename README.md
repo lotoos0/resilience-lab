@@ -1,6 +1,6 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Milestone](https://img.shields.io/badge/Milestone-M0%20Bootstrap-blue)]()
-[![Project Progress](https://img.shields.io/badge/Progress-25%25-yellow)]()
+[![Milestone](https://img.shields.io/badge/Milestone-M1%20Core%20%26%20CI%2FCD-blue)]()
+[![Project Progress](https://img.shields.io/badge/Progress-50%25-yellow)]()
 [![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 
 # 🔬 Resilience Lab
@@ -808,13 +808,16 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
   - [x] Architecture, Development, Deployment guides
   - [x] M0 Retrospective
 
-### 🔜 M1 - Core & CI/CD (Nov 17-25, 2025)
+### ✅ M1 - Core & CI/CD (Nov 17-26, 2025) - **COMPLETED**
 
-- [ ] Helm charts for Kubernetes deployment
-- [ ] Full CI/CD with `--atomic` deployments
-- [ ] Enhanced security (runAsNonRoot, readOnlyRootFS)
-- [ ] Database migrations
-- [ ] API authentication
+- [x] Helm charts for Kubernetes deployment
+- [x] Production-grade SecurityContext (runAsNonRoot, readOnlyRootFS, capabilities)
+- [x] Health probes (startup, liveness, readiness)
+- [x] Trivy security scanning (filesystem + Docker images)
+- [x] CVE remediation (CVE-2024-47874, CVE-2025-62727)
+- [x] Makefile targets for Helm operations
+- [x] Kubernetes documentation (300+ lines)
+- [x] M1 Retrospective
 
 ### 🔜 M2 - Networking (Nov 26-30, 2025)
 

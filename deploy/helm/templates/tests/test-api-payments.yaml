@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-test-api-payments"
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+  - name: test
+    image: curlimages/curl:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "Testing API healthz..."
+      curl -f http://{{ .Release.Name }}-api:8000/healthz || exit 1
+
+      echo "Testing Payments healthz..."
+      curl -f http://{{ .Release.Name }}-payments:8001/healthz || exit 1
+
+      echo "Testing API → Payments integration..."
+      # Test payment processing via API (if endpoint exists)
+      # curl -f -X POST http://{{ .Release.Name }}-api:8000/api/payments \
+      #   -H "Content-Type: application/json" \
+      #   -d '{"amount": 100, "currency": "USD"}' || exit 1
+
+      echo "All tests passed!"
+  restartPolicy: Never

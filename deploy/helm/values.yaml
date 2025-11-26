@@ -1,0 +1,60 @@
+# Global configuration
+global:
+  imageRegistry: ghcr.io
+  imageRepository: lotoos0/resilience-lab
+  imagePullPolicy: IfNotPresent
+  storageClass: standard
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  auth:
+    username: resilience
+    password: resilience
+    database: resilience_db
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+# Redis configuration
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 512Mi
+# API service configuration
+api:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/lotoos0/resilience-lab-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://resilience:resilience@postgresql:5432/resilience_db"
+    - name: REDIS_URL
+      value: "redis://redis:6379"
+    - name: PAYMENTS_URL
+      value: "http://resilience-lab-payments:8001"
+# Payments service configuration
+payments:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/lotoos0/resilience-lab-payments
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8001
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://resilience:resilience@postgresql:5432/resilience_db"
+    - name: REDIS_URL
+      value: "redis://redis:6379"

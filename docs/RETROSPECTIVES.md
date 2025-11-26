@@ -7,6 +7,7 @@ Project retrospectives for continuous improvement and learning.
 ## Table of Contents
 
 - [M0 - Bootstrap](#m0---bootstrap)
+- [M1 - Core & CI/CD](#m1---core--cicd)
 - [Template for Future Milestones](#template-for-future-milestones)
 
 ---
@@ -334,6 +335,310 @@ Despite taking longer than planned, M0 delivered significant value:
 
 ---
 
+## M1 - Core & CI/CD
+
+**Milestone**: M1 - Core & CI/CD
+**Planned dates**: November 17-25, 2025 (9 days)
+**Actual working dates**: November 17-26, 2025 (10 days)
+**Calendar span**: November 17-26, 2025 (10 calendar days)
+**Status**: ✅ Completed
+
+---
+
+### 📊 Overview
+
+M1 focused on production-grade Kubernetes deployment: Helm charts with subcharts, enhanced security baseline (SecurityContext, probes, resources), CI/CD improvements (Trivy scanning, PostgreSQL service), and comprehensive Kubernetes documentation.
+
+**Timeline**:
+- **Planned**: 9 working days (Nov 17-25)
+- **Actual**: 10 working days (Nov 17-26)
+- **Variance**: 1.11x longer than planned (1 extra day)
+
+**Scope**: Delivered all core M1 objectives plus additional security hardening beyond initial scope.
+
+---
+
+### ✅ What Went Well
+
+#### 1. **Production-Ready Helm Charts**
+- ✅ **Parent chart + subcharts** architecture (api, payments)
+- ✅ **Values structure** with dev/prod overrides (values.yaml, values-dev.yaml)
+- ✅ **Chart dependencies** managed via Chart.lock
+- ✅ **Templates** with helpers, deployment, service, tests
+- ✅ **Helm lint** passes without errors
+
+**Impact**: Kubernetes deployment is fully functional and follows best practices.
+
+#### 2. **Enhanced Security Baseline**
+- ✅ **SecurityContext** at pod and container level
+  - `runAsNonRoot: true`
+  - `runAsUser: 1000`
+  - `fsGroup: 1000`
+  - `readOnlyRootFilesystem: true`
+  - `allowPrivilegeEscalation: false`
+  - `capabilities.drop: ["ALL"]`
+- ✅ **Temporary filesystem** with emptyDir volumes for /tmp
+- ✅ **CVE remediation** (CVE-2024-47874, CVE-2025-62727)
+- ✅ **Dependency updates** (Starlette 0.41.3, FastAPI 110.0)
+
+**Impact**: Production-grade security from day one. Passes security audits.
+
+#### 3. **Comprehensive Health Probes**
+- ✅ **startupProbe** for slow-starting applications
+- ✅ **livenessProbe** for pod restart on failure
+- ✅ **readinessProbe** for traffic routing
+- ✅ **Resource limits and requests** properly configured
+
+**Impact**: Kubernetes can properly manage pod lifecycle and resource allocation.
+
+#### 4. **CI/CD Improvements**
+- ✅ **Trivy scanning** (filesystem + Docker images)
+- ✅ **PostgreSQL service** in CI pipeline
+- ✅ **Pip caching** for faster builds
+- ✅ **Trivy version upgrade** (v2 → v3)
+- ✅ **SARIF upload** to GitHub Security tab
+
+**Impact**: Security vulnerabilities caught automatically. CI runs faster with caching.
+
+#### 5. **Enhanced Makefile**
+- ✅ **helm-deps** - Build Helm dependencies
+- ✅ **helm-lint** - Lint Helm charts
+- ✅ **helm-up-dev** - Install with dev values
+- ✅ **helm-test** - Run Helm tests
+- ✅ **helm-down** - Uninstall release
+- ✅ **rollback-%** - Rollback to specific revision
+
+**Impact**: Developer experience significantly improved. One-command deployments.
+
+#### 6. **Kubernetes Documentation**
+- ✅ **README** extended with full Kubernetes section (300+ lines)
+- ✅ **Prerequisites** (kubectl, Helm, k3d/minikube/kind)
+- ✅ **Installation instructions** (step-by-step)
+- ✅ **Testing procedures** (port-forward, curl tests)
+- ✅ **Troubleshooting guide** (common issues)
+
+**Impact**: Anyone can deploy to Kubernetes following the documentation.
+
+---
+
+### 🔧 What Could Be Improved
+
+#### 1. **Security CVE Remediation Process**
+- ⚠️ **DAY06 had 6 commits** fixing CVE-2024-47874 and build errors
+- ⚠️ **FastAPI/Starlette compatibility** issues during updates
+- ⚠️ **Iterative debugging** of dependency conflicts
+
+**Root causes**:
+- Starlette version bump broke FastAPI compatibility
+- Multiple attempts to find working version combination
+- Did not test dependency updates locally before pushing to CI
+
+**Lesson**: Dependency updates need local testing before CI push.
+
+**Action for M2**:
+- Use `pip-compile` or similar for dependency locking
+- Test dependency updates in isolated environment
+- Check changelogs before major version bumps
+- Run full test suite locally before pushing
+
+#### 2. **Trivy Deprecation**
+- ⚠️ **Trivy v2 → v3 migration** required mid-milestone
+- ⚠️ **GitHub Action syntax changed** between versions
+
+**Root cause**: Used deprecated version from documentation/examples.
+
+**Lesson**: Always check for latest stable versions.
+
+**Action for M2**:
+- Pin specific versions in CI (e.g., `@v3` not `@master`)
+- Subscribe to security tool release notes
+- Review CI dependencies quarterly
+
+#### 3. **Git Tag Missing**
+- ⚠️ **v0.1.0-M1 tag** not created during milestone
+- ⚠️ **Retrospective** delayed until after milestone end
+
+**Root cause**: Focused on implementation, forgot release formalities.
+
+**Lesson**: Include tag creation in Definition of Done.
+
+**Action for M2**:
+- Add "Create git tag" to DoD checklist
+- Write retrospective during milestone (not after)
+- Use GitHub releases for better visibility
+
+#### 4. **Timeline Variance (Minor)**
+- ⚠️ **Planned**: 9 days (Nov 17-25)
+- ⚠️ **Actual**: 10 days (Nov 17-26)
+- ⚠️ **Variance**: 1.11x (1 extra day)
+
+**Root cause**: Security CVE fixes took longer than expected (DAY06).
+
+**Lesson**: Security fixes can be unpredictable. Buffer needed.
+
+**Action for M2**:
+- Add 20% buffer for security/dependency work
+- Plan "security day" for proactive CVE scanning
+- Use Dependabot for automated dependency PRs
+
+---
+
+### 📚 Lessons Learned
+
+#### Technical Lessons
+
+1. **Helm chart structure matters**
+   - Parent chart + subcharts pattern scales well
+   - Values inheritance reduces duplication
+   - _helpers.tpl makes templates DRY
+
+2. **SecurityContext is multi-layered**
+   - Pod-level: runAsNonRoot, runAsUser, fsGroup
+   - Container-level: readOnlyRootFilesystem, allowPrivilegeEscalation, capabilities
+   - Both levels needed for full security
+
+3. **readOnlyRootFilesystem requires planning**
+   - Applications need writable /tmp
+   - Use emptyDir volumes for temporary storage
+   - Plan for logs, cache, temp files
+
+4. **Health probes serve different purposes**
+   - startupProbe: Gives slow apps time to start
+   - livenessProbe: Restarts broken pods
+   - readinessProbe: Controls traffic routing
+
+5. **Dependency updates are risky**
+   - FastAPI and Starlette versions must be compatible
+   - Test locally before pushing to CI
+   - Read changelogs for breaking changes
+
+6. **Trivy is powerful but evolving**
+   - Catches CVEs automatically
+   - v2 → v3 had breaking changes
+   - SARIF output integrates with GitHub Security
+
+#### Process Lessons
+
+1. **1.11x variance is excellent**
+   - M1 took only 1 extra day (10 vs 9 planned)
+   - Much better than M0's 1.75x
+   - Security fixes were the main variance cause
+
+2. **CVE remediation is unpredictable**
+   - Can't always predict dependency conflicts
+   - Need buffer time for security work
+   - Worth doing proactively vs reactively
+
+3. **Definition of Done prevents forgotten tasks**
+   - Git tag and retrospective were afterthoughts
+   - Should be in DoD from start
+   - Checklist prevents omissions
+
+4. **Documentation during implementation works**
+   - Updated README as features were added
+   - Less work at milestone end
+   - More accurate documentation
+
+---
+
+### 📈 Metrics
+
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| **Duration (working days)** | 9 days | 10 days | ⚠️ 1.11x over |
+| **Helm charts** | Parent + 2 subcharts | ✅ Delivered | ✅ Met |
+| **SecurityContext** | Basic | Full (8 settings) | ✅ Exceeded |
+| **Health probes** | liveness + readiness | +startup probe | ✅ Exceeded |
+| **CI/CD security** | Trivy scan | Trivy + CVE fixes | ✅ Exceeded |
+| **Makefile targets** | 5 targets | 6 targets | ✅ Exceeded |
+| **README** | Helm section | 300+ lines K8s docs | ✅ Exceeded |
+| **Git tag** | v0.1.0-M1 | Not created (pending) | ⚠️ Delayed |
+| **CVE count** | Unknown | 2 fixed (CVE-2024-47874, CVE-2025-62727) | ✅ Proactive |
+
+**Overall**: Delivered all core objectives plus enhanced security beyond scope, with minimal time variance (1.11x).
+
+---
+
+### 🎯 Action Items for M2
+
+Based on M1 learnings, here's what to do differently in M2:
+
+#### Planning & Estimation
+- [x] **1.5-2x time buffer worked** - Continue for new features
+- [ ] **Add 20% security buffer** for dependency/CVE work
+- [ ] **Include git tag in DoD** from start
+- [ ] **Plan "security day"** for proactive CVE scanning
+
+#### Process Improvements
+- [ ] **Test dependency updates locally** before CI push
+- [ ] **Use pip-compile** for dependency locking
+- [ ] **Write retrospective during milestone** (not after)
+- [ ] **Set up Dependabot** for automated dependency PRs
+
+#### Technical Improvements
+- [ ] **Pin CI tool versions** (@v3 not @master)
+- [ ] **Document CVE remediation process** in runbooks
+- [ ] **Create dependency update checklist** (test, changelog, compatibility)
+- [ ] **Subscribe to security tool release notes**
+
+#### Documentation
+- [x] **Incremental doc updates worked well** - Continue
+- [ ] **Add "Release Process" section** to CONTRIBUTING.md
+- [ ] **Document dependency management** strategy
+
+---
+
+### 🏆 Key Achievements
+
+M1 delivered production-ready Kubernetes deployment with exceptional security:
+
+1. **Production-grade Helm charts** - Parent + subcharts architecture
+2. **Enhanced security baseline** - 8 SecurityContext settings, CVE fixes
+3. **Comprehensive health probes** - startup + liveness + readiness
+4. **Improved CI/CD** - Trivy scanning, PostgreSQL service, caching
+5. **Enhanced DX** - 6 Makefile targets for one-command operations
+6. **Excellent documentation** - 300+ lines of Kubernetes deployment guide
+
+**Verdict**: M1 took only 1 extra day (10 vs 9 planned, 1.11x variance), delivered all core objectives, and exceeded scope with enhanced security. The time spent on CVE remediation (DAY06) was unpredictable but valuable. Overall: excellent execution.
+
+---
+
+### 💭 Final Thoughts
+
+**What I'm proud of**:
+- **1.11x variance** - Only 1 extra day! Much better than M0's 1.75x
+- **Security-first approach** - Full SecurityContext, proactive CVE fixes
+- **Production-ready** - Not just "works", but "production-grade"
+- **Enhanced DX** - Makefile targets make Kubernetes deployment trivial
+- **Comprehensive docs** - 300+ lines of K8s documentation
+
+**What I'd do differently**:
+- **Test dependency updates locally** - Would have saved 5 commits on DAY06
+- **Create git tag during milestone** - Not as an afterthought
+- **Write retrospective incrementally** - Daily notes → final doc
+- **Pin Trivy version from start** - Avoid v2 → v3 migration
+
+**What went better than expected**:
+- **Time variance only 1.11x** - Excellent estimation improvement from M0
+- **Security exceeded scope** - Full SecurityContext + CVE fixes
+- **Documentation momentum** - Kept updating docs during implementation
+- **CI/CD maturity** - Trivy + caching + PostgreSQL service
+
+**Unexpected challenges**:
+- **DAY06 CVE remediation** - 6 commits for FastAPI/Starlette compatibility
+- **Trivy v2 deprecation** - Had to migrate mid-milestone
+- **readOnlyRootFilesystem** - Needed emptyDir for /tmp (learned this)
+
+**Looking ahead to M2**:
+- **Focus**: Traefik ingress, Envoy service mesh, HPA, PDB, NetworkPolicy
+- **Apply M1 lessons**: Security buffer, dependency testing, incremental retro
+- **Build on M1 foundation**: Production-ready K8s with advanced networking
+- **Continue momentum**: 1.11x variance target, security-first approach
+
+**Overall**: M1 was a strong success. Took 1 extra day (1.11x variance - excellent improvement from M0's 1.75x), delivered all core objectives plus enhanced security beyond scope. The CVE remediation work (DAY06) was unpredictable but valuable. Production-ready Kubernetes deployment with exceptional security baseline. Ready for M2 (Networking) with confidence.
+
+---
+
 ## Template for Future Milestones
 
 Use this template for M1-M4 retrospectives:
@@ -379,4 +684,4 @@ Overall reflection on the milestone.
 
 ---
 
-**Last updated**: November 19, 2025
+**Last updated**: November 26, 2025

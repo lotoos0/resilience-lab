@@ -1,15 +1,16 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Milestone](https://img.shields.io/badge/Milestone-M1%20Core%20%26%20CI%2FCD-blue)]()
-[![Project Progress](https://img.shields.io/badge/Progress-50%25-yellow)]()
+[![Milestone](https://img.shields.io/badge/Milestone-M2%20Networking%20%26%20Health-blue)]()
+[![Project Progress](https://img.shields.io/badge/Progress-53%25-yellow)]()
 [![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 
 # 🔬 Resilience Lab
 
 **A Kubernetes “resilience sandbox” for testing cloud-native failure patterns before they hit production.**
 
-> FastAPI + PostgreSQL + Redis today  
-> Helm, GitHub Actions, security baseline, CI pipeline already in place  
-> Envoy, Prometheus, Grafana, Loki and chaos tooling – planned in upcoming milestones.
+> FastAPI + PostgreSQL + Redis today
+> Helm, GitHub Actions, security baseline, CI pipeline already in place
+> Envoy + Traefik networking layer deployed
+> Prometheus, Grafana, Loki and chaos tooling – planned in upcoming milestones.
 
 Resilience Lab is a hands-on platform for learning and practicing cloud-native resilience patterns.  
 It provides a realistic microservices environment (API + Payments + PostgreSQL + Redis) with:
@@ -19,7 +20,8 @@ It provides a realistic microservices environment (API + Payments + PostgreSQL +
 - CI/CD pipeline (lint → unit → integration → build → publish to GHCR),
 - security baseline (non-root, healthchecks, Trivy scans).
 
-Upcoming milestones extend this lab with service mesh (Envoy), observability (Prometheus, Grafana, Loki) and chaos experiments.
+Current milestone (M2) provides networking layer with Traefik ingress controller and Envoy front-proxy.
+Upcoming milestones extend this lab with observability (Prometheus, Grafana, Loki) and chaos experiments.
 
 ---
 
@@ -465,18 +467,37 @@ deploy/helm/
 ### System Overview
 
 ```
-┌─────────────┐      ┌─────────────┐
-│     API     │─────▶│  Payments   │
-│  (port 8000)│      │ (port 8001) │
-└─────────────┘      └─────────────┘
-      │                     │
-      ├─────────────────────┤
-      │                     │
-      ▼                     ▼
-┌─────────────┐      ┌─────────────┐
-│ PostgreSQL  │      │    Redis    │
-│  (port 5432)│      │  (port 6379)│
-└─────────────┘      └─────────────┘
+        User/Browser
+             │
+             ▼
+     ┌──────────────┐
+     │   Traefik    │ ← HTTPS ingress controller
+     │(IngressRoute)│   (port 80/443)
+     └──────┬───────┘
+            │
+            ▼
+     ┌──────────────┐
+     │    Envoy     │ ← Front-proxy (routing, health checks)
+     │  (proxy)     │   (port 10000)
+     └──────┬───────┘
+            │
+       ┌────┴────┐
+       │         │
+       ▼         ▼
+┌───────────┐  ┌───────────┐
+│    API    │  │  Payments │
+│(port 8000)│  │(port 8001)│
+└─────┬─────┘  └────┬──────┘
+      │             │
+      └──────┬──────┘
+             │
+      ┌──────┴───────┐
+      │              │
+      ▼              ▼
+┌───────────┐  ┌───────────┐
+│PostgreSQL │  │  Redis    │
+│(port 5432)│  │(port 6379)│
+└───────────┘  └───────────┘
 ```
 
 ### Services
@@ -504,6 +525,37 @@ deploy/helm/
   - `GET /healthz` - Health check
   - `POST /process` - Process payment
   - `GET /payments/{id}` - Get payment by ID
+
+#### Networking Layer
+
+##### Traefik (`deploy/traefik/`)
+
+- **Purpose**: HTTPS ingress controller
+- **Tech Stack**: Traefik v2+
+- **Responsibilities**:
+  - TLS termination (self-signed certificate)
+  - Ingress routing via IngressRoute CRD
+  - Entry point for external traffic
+- **Configuration**:
+  - `ingressroute.yaml` - HTTP and HTTPS routing rules
+  - Routes traffic to Envoy front-proxy
+
+##### Envoy (`deploy/envoy/`)
+
+- **Purpose**: Front-proxy and traffic management
+- **Tech Stack**: Envoy Proxy v1.28+
+- **Responsibilities**:
+  - Service routing (API, Payments)
+  - Health checking backend services
+  - Load balancing (Round Robin)
+  - Admin interface for observability
+- **Configuration**:
+  - `envoy-config.yaml` - ConfigMap with routing rules
+  - `envoy-deployment.yaml` - 2 replicas with health probes
+  - `envoy-service.yaml` - ClusterIP service
+- **Endpoints**:
+  - Port 10000: Main proxy endpoint
+  - Port 9901: Admin interface
 
 #### Infrastructure
 
@@ -881,13 +933,14 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 - [x] Kubernetes documentation (300+ lines)
 - [x] M1 Retrospective
 
-### 🔜 M2 - Networking (Nov 26-30, 2025)
+### 🚧 M2 - Networking & Health (Nov 26-30, 2025) - **IN PROGRESS**
 
-- [ ] Traefik ingress controller
-- [ ] Envoy service mesh
+- [x] Traefik ingress controller (IngressRoute with TLS)
+- [x] Envoy front-proxy (routing, health checks, load balancing)
+- [ ] Envoy resilience policies (retries, timeouts, outlier ejection)
 - [ ] HPA (Horizontal Pod Autoscaler)
 - [ ] PDB (Pod Disruption Budget)
-- [ ] NetworkPolicy
+- [ ] NetworkPolicy (allow-list security)
 
 ### 🔜 M3 - Resilience + Observability (Dec 1-15, 2025)
 
@@ -962,4 +1015,4 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 
 **Built with ❤️ for cloud-native resilience engineering**
 
-_Last updated: November 22, 2025_
+_Last updated: November 27, 2025_

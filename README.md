@@ -5,12 +5,21 @@
 
 # 🔬 Resilience Lab
 
-**A Kubernetes "resilience sandbox" for testing cloud-native failure patterns.**
+**A Kubernetes “resilience sandbox” for testing cloud-native failure patterns before they hit production.**
 
-> FastAPI + Envoy + Redis + Prometheus + Loki
-> Deployable via Helm, observable via Grafana.
+> FastAPI + PostgreSQL + Redis today  
+> Helm, GitHub Actions, security baseline, CI pipeline already in place  
+> Envoy, Prometheus, Grafana, Loki and chaos tooling – planned in upcoming milestones.
 
-Resilience Lab is a hands-on platform for learning and testing cloud-native resilience patterns. It provides a complete microservices environment with observability, service mesh, and chaos engineering capabilities.
+Resilience Lab is a hands-on platform for learning and practicing cloud-native resilience patterns.  
+It provides a realistic microservices environment (API + Payments + PostgreSQL + Redis) with:
+
+- local Docker Compose setup for fast development,
+- Helm-based Kubernetes deployment for staging/“lab” clusters,
+- CI/CD pipeline (lint → unit → integration → build → publish to GHCR),
+- security baseline (non-root, healthchecks, Trivy scans).
+
+Upcoming milestones extend this lab with service mesh (Envoy), observability (Prometheus, Grafana, Loki) and chaos experiments.
 
 ---
 
@@ -509,6 +518,59 @@ deploy/helm/
 - **Security**: Non-root containers, health checks
 
 ---
+
+## 🌍 Environments & Real-World Usage
+
+Resilience Lab is not “another app”.  
+It is a **platform** you can run your microservices on – before they reach real players/users.
+
+A typical real-world setup looks like this:
+
+```text
+               GitHub (game/backend repo)
+                         │
+                         ▼
+                 GitHub Actions CI/CD
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+             ▼                       ▼
+      🧪 LAB / STAGING         🎮 PRODUCTION
+  (Resilience Lab cluster)   (players' backend)
+```
+
+- **LAB / STAGING (Resilience Lab)**
+  - Helm deploys the microservices into a Kubernetes cluster used only by developers.
+  - Here you run:
+    - integration tests,
+    - resilience experiments (timeouts, retries, HPA, PDB, NetworkPolicies),
+    - later: rate-limiting, circuit breakers, canary releases, chaos experiments.
+
+  - No real players / customers hit this environment.
+
+- **PRODUCTION**
+  - Uses the **same Docker images, Helm charts and CI/CD patterns**,
+    but deployed to a separate cluster (or EC2-based environment).
+  - This is where the _official_ backend for the game/app runs.
+
+### Example: game backend
+
+You can plug a game backend into this lab, e.g.:
+
+- `game-store` microservice (item shop),
+- `inventory` microservice,
+- `profile` microservice.
+
+Flow:
+
+1. Developer pushes changes to `game-backend` repo.
+2. CI builds Docker images and deploys them to the **LAB cluster** using the patterns from this project.
+3. If tests and resilience checks pass, the same images + Helm values are promoted to the **PRODUCTION cluster** where real players connect.
+
+In other words:
+
+> **Resilience Lab defines how you build, deploy and test microservices safely,
+> production defines where your players/users actually connect.**
 
 ## 💻 Development
 

@@ -10,94 +10,115 @@ data:
         socket_address:
           address: 0.0.0.0
           port_value: 9901
-
     static_resources:
       listeners:
-      - name: listener_0
-        address:
-          socket_address:
-            address: 0.0.0.0
-            port_value: 10000
-        filter_chains:
-        - filters:
-          - name: envoy.filters.network.http_connection_manager
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-              stat_prefix: ingress_http
-              codec_type: AUTO
-              route_config:
-                name: local_route
-                virtual_hosts:
-                - name: backend
-                  domains: ["*"]
-                  routes:
-                  # API routes
-                  - match:
-                      prefix: "/api"
-                    route:
-                      cluster: api_service
-                      regex_rewrite:
-                        pattern:
-                          regex: "^/api"
-                        substitution: ""
-                  # Payments routes
-                  - match:
-                      prefix: "/payments"
-                    route:
-                      cluster: payments_service
-                      regex_rewrite:
-                        pattern:
-                          regex: "^/payments"
-                        substitution: ""
-                  # Health check route
-                  - match:
-                      prefix: "/healthz"
-                    route:
-                      cluster: api_service
-              http_filters:
-              - name: envoy.filters.http.router
-                typed_config:
-                  "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-
+        - name: listener_0
+          address:
+            socket_address:
+              address: 0.0.0.0
+              port_value: 10000
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: ingress_http
+                    codec_type: AUTO
+                    route_config:
+                      name: local_route
+                      virtual_hosts:
+                        - name: backend
+                          domains: ["*"]
+                          routes:
+                            # API routes
+                            - match:
+                                prefix: "/api"
+                              route:
+                                cluster: api_service
+                                regex_rewrite:
+                                  pattern:
+                                    regex: "^/api"
+                                  substitution: ""
+                                retry_policy:
+                                  retry_on: "5xx,reset,connect-failure,refused-stream"
+                                  num_retries: 2
+                                  per_try_timeout: 2s
+                            # Payments routes
+                            - match:
+                                prefix: "/payments"
+                              route:
+                                cluster: payments_service
+                                regex_rewrite:
+                                  pattern:
+                                    regex: "^/payments"
+                                  substitution: ""
+                                retry_policy:
+                                  retry_on: "5xx,reset,connect-failure,refused-stream"
+                                  num_retries: 2
+                                  per_try_timeout: 2s
+                            # Health check route
+                            - match:
+                                prefix: "/healthz"
+                              route:
+                                cluster: api_service
+                    http_filters:
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
       clusters:
-      # API service cluster
-      - name: api_service
-        type: STRICT_DNS
-        lb_policy: ROUND_ROBIN
-        load_assignment:
-          cluster_name: api_service
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: resilience-lab-api
-                    port_value: 8000
-        health_checks:
-        - timeout: 1s
-          interval: 5s
-          unhealthy_threshold: 2
-          healthy_threshold: 2
-          http_health_check:
-            path: "/healthz"
-
-      # Payments service cluster
-      - name: payments_service
-        type: STRICT_DNS
-        lb_policy: ROUND_ROBIN
-        load_assignment:
-          cluster_name: payments_service
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: resilience-lab-payments
-                    port_value: 8001
-        health_checks:
-        - timeout: 1s
-          interval: 5s
-          unhealthy_threshold: 2
-          healthy_threshold: 2
-          http_health_check:
-            path: "/healthz"
+        # API service cluster
+        - name: api_service
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+            cluster_name: api_service
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: resilience-lab-api
+                          port_value: 8000
+          health_checks:
+            - timeout: 1s
+              interval: 5s
+              unhealthy_threshold: 2
+              healthy_threshold: 2
+              http_health_check:
+                path: "/healthz"
+          common_http_protocol_options:
+            idle_timeout: 60s
+          # Retry policy
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              explicit_http_config:
+                http2_protocol_options: {}
+        # Payments service cluster
+        - name: payments_service
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+            cluster_name: payments_service
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: resilience-lab-payments
+                          port_value: 8001
+          health_checks:
+            - timeout: 1s
+              interval: 5s
+              unhealthy_threshold: 2
+              healthy_threshold: 2
+              http_health_check:
+                path: "/healthz"
+          common_http_protocol_options:
+            idle_timeout: 60s
+          # Retry policy
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              explicit_http_config:
+                http2_protocol_options: {}

@@ -227,6 +227,8 @@ TODO.md
 PLAN_TODAY.md
 TO_FIX.md
 PROJECT_PLAN_DETAILS.md
+features.md
+checkin.md
 
 # === MCP Configuration ===
 # Claude Desktop config - has absolute paths, don't commit

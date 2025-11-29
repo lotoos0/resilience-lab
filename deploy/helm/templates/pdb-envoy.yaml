@@ -7,5 +7,4 @@ spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/instance: resilience-lab
-      app.kubernetes.io/name: envoy
+      app: envoy-proxy

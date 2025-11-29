@@ -6,6 +6,7 @@ metadata:
     {{- include "api.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
+  clusterIP: None  # Headless service for Envoy endpoint discovery
   ports:
   - port: {{ .Values.service.port }}
     targetPort: http

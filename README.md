@@ -640,6 +640,12 @@ curl http://localhost:9901/stats | grep outlier
 curl http://localhost:9901/clusters | grep -E "health_flags|ejected"
 ```
 
+### High Availability & Security
+
+- ✅ **HPA (HorizontalPodAutoscaler)**: Auto-scaling 2-5 replicas (CPU 70%, Memory 80%)
+- ✅ **PDB (PodDisruptionBudget)**: minAvailable: 1 for zero-downtime updates
+- ✅ **NetworkPolicy**: Default-deny with allow-list for Envoy → Service
+
 ### Key Implementation Details
 
 **Headless Services:**
@@ -1018,9 +1024,9 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 - [x] Envoy front-proxy (routing, health checks, load balancing)
 - [x] Envoy resilience policies (retries, timeouts, outlier ejection)
 - [x] Headless services for Envoy endpoint discovery
-- [ ] HPA (Horizontal Pod Autoscaler)
-- [ ] PDB (Pod Disruption Budget)
-- [ ] NetworkPolicy (allow-list security)
+- [x] HPA (Horizontal Pod Autoscaler)
+- [x] PDB (Pod Disruption Budget)
+- [x] NetworkPolicy (allow-list security)
 
 ### 🔜 M3 - Resilience + Observability (Dec 1-15, 2025)
 

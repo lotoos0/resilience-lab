@@ -606,16 +606,19 @@ User → Traefik (HTTPS/TLS) → Envoy (resilience policies) → API/Payments Se
 ### Resilience Features Verified
 
 **Retry Policy:**
+
 - Automatic retries on transient failures (5xx, connection errors)
 - Per-try timeout prevents hanging requests
 - Retry host predicate avoids retrying same failing host
 
 **Timeout Policy:**
+
 - Request-level timeouts prevent resource exhaustion
 - Idle timeouts for long-lived connections
 - Global and per-route timeout configuration
 
 **Outlier Detection (Circuit Breaker):**
+
 - Detects failing hosts via consecutive 5xx errors
 - Automatic ejection of unhealthy endpoints (30s base ejection time)
 - Max 50% of hosts can be ejected to maintain availability
@@ -636,6 +639,12 @@ curl http://localhost:9901/stats | grep outlier
 # View clusters and health status
 curl http://localhost:9901/clusters | grep -E "health_flags|ejected"
 ```
+
+### High Availability & Security
+
+- ✅ **HPA (HorizontalPodAutoscaler)**: Auto-scaling 2-5 replicas (CPU 70%, Memory 80%)
+- ✅ **PDB (PodDisruptionBudget)**: minAvailable: 1 for zero-downtime updates
+- ✅ **NetworkPolicy**: Default-deny with allow-list for Envoy → Service
 
 ### Key Implementation Details
 
@@ -1015,9 +1024,9 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 - [x] Envoy front-proxy (routing, health checks, load balancing)
 - [x] Envoy resilience policies (retries, timeouts, outlier ejection)
 - [x] Headless services for Envoy endpoint discovery
-- [ ] HPA (Horizontal Pod Autoscaler)
-- [ ] PDB (Pod Disruption Budget)
-- [ ] NetworkPolicy (allow-list security)
+- [x] HPA (Horizontal Pod Autoscaler)
+- [x] PDB (Pod Disruption Budget)
+- [x] NetworkPolicy (allow-list security)
 
 ### 🔜 M3 - Resilience + Observability (Dec 1-15, 2025)
 

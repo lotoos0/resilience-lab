@@ -102,7 +102,7 @@ data:
             envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
               "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
               explicit_http_config:
-                http2_protocol_options: {}
+                http_protocol_options: {}
           outlier_detection:
             consecutive_5xx: 3
             interval: 10s
@@ -140,7 +140,7 @@ data:
             envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
               "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
               explicit_http_config:
-                http2_protocol_options: {}
+                http_protocol_options: {}
           outlier_detection:
             consecutive_5xx: 3
             interval: 10s

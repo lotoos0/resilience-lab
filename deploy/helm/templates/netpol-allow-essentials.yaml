@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-and-health
+  namespace: resilience-lab
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS (to any destination on port 53)
+  - ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow health checks from kubelet
+  - ports:
+    - protocol: TCP
+      port: 8000
+    - protocol: TCP
+      port: 8001

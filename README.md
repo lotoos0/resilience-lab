@@ -1,6 +1,6 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Milestone](https://img.shields.io/badge/Milestone-M2%20Networking%20%26%20Health-blue)]()
-[![Project Progress](https://img.shields.io/badge/Progress-53%25-yellow)]()
+[![Project Progress](https://img.shields.io/badge/Progress-60%25-yellow)]()
 [![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 
 # 🔬 Resilience Lab
@@ -9,7 +9,7 @@
 
 > FastAPI + PostgreSQL + Redis today
 > Helm, GitHub Actions, security baseline, CI pipeline already in place
-> Envoy + Traefik networking layer deployed
+> Envoy + Traefik networking layer with resilience policies (retry, timeout, circuit breaker)
 > Prometheus, Grafana, Loki and chaos tooling – planned in upcoming milestones.
 
 Resilience Lab is a hands-on platform for learning and practicing cloud-native resilience patterns.  
@@ -20,7 +20,7 @@ It provides a realistic microservices environment (API + Payments + PostgreSQL +
 - CI/CD pipeline (lint → unit → integration → build → publish to GHCR),
 - security baseline (non-root, healthchecks, Trivy scans).
 
-Current milestone (M2) provides networking layer with Traefik ingress controller and Envoy front-proxy.
+Current milestone (M2) provides production-grade networking layer with Traefik ingress controller and Envoy front-proxy featuring resilience policies (retry, timeout, circuit breaker).
 Upcoming milestones extend this lab with observability (Prometheus, Grafana, Loki) and chaos experiments.
 
 ---
@@ -31,6 +31,7 @@ Upcoming milestones extend this lab with observability (Prometheus, Grafana, Lok
 - [Quick Start](#-quick-start)
 - [Kubernetes Deployment with Helm](#-kubernetes-deployment-with-helm)
 - [Architecture](#-architecture)
+- [M2 Progress: Networking & Health](#-m2-progress-networking--health--envoy-policies-complete)
 - [Development](#-development)
 - [Testing](#-testing)
 - [CI/CD](#-cicd)
@@ -542,15 +543,18 @@ deploy/helm/
 
 ##### Envoy (`deploy/envoy/`)
 
-- **Purpose**: Front-proxy and traffic management
+- **Purpose**: Front-proxy and traffic management with resilience policies
 - **Tech Stack**: Envoy Proxy v1.28+
 - **Responsibilities**:
   - Service routing (API, Payments)
   - Health checking backend services
   - Load balancing (Round Robin)
+  - **Retry policy** (2 retries, 2s per-try timeout)
+  - **Timeout policy** (10s request, 60s idle)
+  - **Outlier detection** (circuit breaker, 3 consecutive 5xx → 30s ejection)
   - Admin interface for observability
 - **Configuration**:
-  - `envoy-config.yaml` - ConfigMap with routing rules
+  - `envoy-config.yaml` - ConfigMap with routing rules and resilience policies
   - `envoy-deployment.yaml` - 2 replicas with health probes
   - `envoy-service.yaml` - ClusterIP service
 - **Endpoints**:
@@ -566,8 +570,80 @@ deploy/helm/
 
 - **Microservices**: Independently deployable services
 - **Health Checks**: Built-in health monitoring
+- **Circuit Breaker**: Automatic outlier detection and ejection
+- **Retry Pattern**: Automatic retries on transient failures
+- **Timeout Pattern**: Request and idle timeouts
 - **12-Factor App**: Environment-based configuration
 - **Security**: Non-root containers, health checks
+
+---
+
+## 📊 M2 Progress: Networking & Health (✅ Envoy Policies Complete)
+
+The M2 milestone focuses on building a production-grade networking layer with resilience policies.
+
+### Traefik Ingress
+
+- ✅ **Traefik IngressRoute** with self-signed TLS certificate
+- ✅ **HTTPS routing**: `resilience-lab.local` → Envoy proxy
+- ✅ **TLS termination** at ingress level
+
+### Envoy Front-Proxy
+
+- ✅ **Service routing** to API and Payments services
+- ✅ **Health checks** (5s interval, 2/2 healthy/unhealthy threshold)
+- ✅ **Retry policy**: 2 retries on 5xx/reset/connect-failure with 2s per-try timeout
+- ✅ **Timeout policy**: 10s request timeout, 60s idle timeout
+- ✅ **Outlier detection** (circuit breaker): 3 consecutive 5xx → 30s ejection
+- ✅ **Headless services**: Envoy sees individual pod IPs for accurate outlier detection
+
+### Architecture Flow
+
+```
+User → Traefik (HTTPS/TLS) → Envoy (resilience policies) → API/Payments Services
+```
+
+### Resilience Features Verified
+
+**Retry Policy:**
+- Automatic retries on transient failures (5xx, connection errors)
+- Per-try timeout prevents hanging requests
+- Retry host predicate avoids retrying same failing host
+
+**Timeout Policy:**
+- Request-level timeouts prevent resource exhaustion
+- Idle timeouts for long-lived connections
+- Global and per-route timeout configuration
+
+**Outlier Detection (Circuit Breaker):**
+- Detects failing hosts via consecutive 5xx errors
+- Automatic ejection of unhealthy endpoints (30s base ejection time)
+- Max 50% of hosts can be ejected to maintain availability
+- Verified with pod failure simulation: `ejections_enforced_total: 1`
+
+### Testing Resilience
+
+```bash
+# Test retry policy on pod failure
+kubectl delete pod -l app.kubernetes.io/name=api -n resilience-lab
+curl -H "Host: resilience-lab.local" http://localhost:8080/api/healthz
+# Should succeed due to retry policy + healthy pods
+
+# Check Envoy outlier ejection stats
+kubectl port-forward -n resilience-lab svc/envoy-proxy 9901:9901
+curl http://localhost:9901/stats | grep outlier
+
+# View clusters and health status
+curl http://localhost:9901/clusters | grep -E "health_flags|ejected"
+```
+
+### Key Implementation Details
+
+**Headless Services:**
+Services use `clusterIP: None` to enable Envoy endpoint discovery. This allows Envoy to see individual pod IPs instead of a single ClusterIP, which is required for outlier detection to function correctly.
+
+**Load Balancing:**
+Round-robin load balancing across healthy endpoints with automatic failover to healthy hosts when outlier detection ejects failing ones.
 
 ---
 
@@ -937,7 +1013,8 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 
 - [x] Traefik ingress controller (IngressRoute with TLS)
 - [x] Envoy front-proxy (routing, health checks, load balancing)
-- [ ] Envoy resilience policies (retries, timeouts, outlier ejection)
+- [x] Envoy resilience policies (retries, timeouts, outlier ejection)
+- [x] Headless services for Envoy endpoint discovery
 - [ ] HPA (Horizontal Pod Autoscaler)
 - [ ] PDB (Pod Disruption Budget)
 - [ ] NetworkPolicy (allow-list security)
@@ -1015,4 +1092,4 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 
 **Built with ❤️ for cloud-native resilience engineering**
 
-_Last updated: November 27, 2025_
+_Last updated: November 29, 2025_

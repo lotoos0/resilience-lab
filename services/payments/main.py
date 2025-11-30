@@ -3,12 +3,18 @@ Payments Service - Main entrypoint
 Handles payment processing and persistence.
 """
 
+import os
+import time
 import uuid
 from typing import Dict, Any
-from fastapi import FastAPI, status
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Resilience Lab - Payments Service")
+
+# Fault injection flags (for resilience testing)
+FAIL_MODE = os.getenv("FAIL_MODE", "0") == "1"
+SLOW_MODE = os.getenv("SLOW_MODE", "0") == "1"
 
 # In-memory storage for demo (will be replaced with PG in future iterations)
 payments_store: Dict[str, Dict[str, Any]] = {}
@@ -41,6 +47,14 @@ async def process_payment(payment: PaymentProcessRequest) -> Dict[str, Any]:
     Process a payment request.
     Currently stores in-memory, will be persisted to PostgreSQL in M1.
     """
+    # Fault injection: Simulate slow responses
+    if SLOW_MODE:
+        time.sleep(2)  # 2s delay
+
+    # Fault injection: Simulate failures
+    if FAIL_MODE:
+        raise HTTPException(status_code=500, detail="FAIL_MODE enabled")
+
     payment_id = str(uuid.uuid4())
 
     payment_record = {

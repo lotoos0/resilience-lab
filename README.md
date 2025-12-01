@@ -669,6 +669,7 @@ curl http://localhost:9901/stats | grep -E 'outlier|retry|timeout'
 ```
 
 **Expected results:**
+
 - **FAIL_MODE**: Triggers outlier detection after 3 consecutive 5xx errors
 - **SLOW_MODE**: Triggers per-try timeouts (2s) and retries
 - **Pod Kill**: Kubernetes auto-recovers pod within ~30s, retries ensure no downtime
@@ -1056,6 +1057,7 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 ### ✅ M2 - Networking & Health (Nov 26-30, 2025) - **COMPLETE**
 
 **Delivered:**
+
 - [x] Traefik ingress controller (IngressRoute with self-signed TLS)
 - [x] Envoy front-proxy (routing, health checks, load balancing, admin interface)
 - [x] Envoy resilience policies (retries: 2, timeouts: 10s, outlier ejection: 5xx)
@@ -1067,6 +1069,7 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 - [x] M2 testing documentation and retrospective
 
 **Key Achievements:**
+
 - ✅ Production-grade high availability (HPA + PDB)
 - ✅ Network security isolation (NetworkPolicy)
 - ✅ Resilience primitives verified (retries, timeouts, circuit breaker)
@@ -1150,4 +1153,4 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 
 **Built with ❤️ for cloud-native resilience engineering**
 
-_Last updated: November 29, 2025_
+_Last updated: December 01, 2025_

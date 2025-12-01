@@ -4,6 +4,7 @@ Handles payment requests and communicates with Payments service.
 """
 
 import os
+import redis
 from typing import Dict, Any
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
@@ -12,6 +13,11 @@ import httpx
 app = FastAPI(title="Resilience Lab - API Service")
 
 PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://localhost:8001")
+
+# Redis connection
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 
 class PaymentRequest(BaseModel):

@@ -4,12 +4,16 @@ Enforces per-tenant request limits with sliding window
 """
 
 import time
+import uuid
+import json
 from typing import Callable
 from fastapi import Request, HTTPException, status
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from redis import Redis
 
 
-class RateLimitMiddleware:
+class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     Rate limit middleware using Redis sliding window.
 
@@ -18,17 +22,19 @@ class RateLimitMiddleware:
 
     def __init__(
         self,
+        app,
         redis_client: Redis,
         max_requests: int = 60,
         window_seconds: int = 60,
         tenant_header: str = "X-Tenant",
     ):
+        super().__init__(app)
         self.redis = redis_client
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.tenant_header = tenant_header
 
-    async def __call__(self, request: Request, call_next: Callable):
+    async def dispatch(self, request: Request, call_next: Callable):
         """Process request with rate limiting."""
 
         # Get tenant from header (default: 'default')
@@ -36,9 +42,9 @@ class RateLimitMiddleware:
 
         # Check rate limit
         if not await self._check_rate_limit(tenant_id):
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail={
+                content={
                     "error": "rate_limit_exceeded",
                     "message": f"Rate limit exceeded for tenant {tenant_id}",
                     "limit": f"{self.max_requests} requests per {self.window_seconds}s",
@@ -70,8 +76,9 @@ class RateLimitMiddleware:
         # Count requests in current window
         pipe.zcard(key)
 
-        # Add current request
-        pipe.zadd(key, {str(current_time): current_time})
+        # Add current request with unique ID
+        request_id = str(uuid.uuid4())
+        pipe.zadd(key, {request_id: current_time})
 
         # Set expiration
         pipe.expire(key, self.window_seconds)

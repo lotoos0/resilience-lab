@@ -640,6 +640,41 @@ curl http://localhost:9901/stats | grep outlier
 curl http://localhost:9901/clusters | grep -E "health_flags|ejected"
 ```
 
+### Fault Injection Testing
+
+Test resilience features using built-in fault injection scripts:
+
+```bash
+# Inject 500 errors (test outlier ejection)
+./scripts/fault-inject.sh failure
+
+# Inject 2s delay (test timeout policy)
+./scripts/fault-inject.sh slow
+
+# Kill random pod (test retry policy and auto-recovery)
+./scripts/fault-inject.sh kill
+
+# Cleanup all injections
+./scripts/fault-inject.sh cleanup
+```
+
+**Monitor Envoy statistics during tests:**
+
+```bash
+# Port-forward Envoy admin interface
+kubectl port-forward -n resilience-lab svc/envoy-proxy 9901:9901
+
+# Check outlier detection, retries, and timeouts
+curl http://localhost:9901/stats | grep -E 'outlier|retry|timeout'
+```
+
+**Expected results:**
+- **FAIL_MODE**: Triggers outlier detection after 3 consecutive 5xx errors
+- **SLOW_MODE**: Triggers per-try timeouts (2s) and retries
+- **Pod Kill**: Kubernetes auto-recovers pod within ~30s, retries ensure no downtime
+
+See `docs/M2_FAULT_TESTS.md` for detailed test results and analysis.
+
 ### High Availability & Security
 
 - ✅ **HPA (HorizontalPodAutoscaler)**: Auto-scaling 2-5 replicas (CPU 70%, Memory 80%)

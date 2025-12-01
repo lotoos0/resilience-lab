@@ -2,6 +2,10 @@
 [![Milestone](https://img.shields.io/badge/Milestone-M3%20Observability-blue)]()
 [![Project Progress](https://img.shields.io/badge/Progress-70%25-yellow)]()
 [![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
+[![CD](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
+[![codecov](https://codecov.io/gh/lotoos0/resilience-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/lotoos0/resilience-lab)
+[![Security](https://img.shields.io/badge/security-Trivy-blue)](https://github.com/lotoos0/resilience-lab/security/code-scanning)
+[![Tests](https://img.shields.io/badge/tests-pytest-green)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 
 # 🔬 Resilience Lab
 

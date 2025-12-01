@@ -5,7 +5,6 @@ Enforces per-tenant request limits with sliding window
 
 import time
 import uuid
-import json
 from typing import Callable
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware

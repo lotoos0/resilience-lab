@@ -1,0 +1,5 @@
+NAME                      POD-SELECTOR                      AGE
+allow-dns-and-health      <none>                            35h
+allow-envoy-to-payments   app.kubernetes.io/name=payments   35h
+allow-envoy-to-services   app.kubernetes.io/name=api        35h
+default-deny-all          <none>                            35h

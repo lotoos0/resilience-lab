@@ -1,0 +1,3 @@
+NAME                          REFERENCE                            TARGETS                        MINPODS   MAXPODS   REPLICAS   AGE
+resilience-lab-api-hpa        Deployment/resilience-lab-api        cpu: 1%/70%, memory: 40%/80%   2         5         2          45h
+resilience-lab-payments-hpa   Deployment/resilience-lab-payments   cpu: 1%/70%, memory: 31%/80%   1         3         1          45h

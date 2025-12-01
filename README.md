@@ -1,6 +1,6 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Milestone](https://img.shields.io/badge/Milestone-M2%20Networking%20%26%20Health-blue)]()
-[![Project Progress](https://img.shields.io/badge/Progress-60%25-yellow)]()
+[![Milestone](https://img.shields.io/badge/Milestone-M3%20Observability-blue)]()
+[![Project Progress](https://img.shields.io/badge/Progress-70%25-yellow)]()
 [![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 
 # 🔬 Resilience Lab
@@ -1053,17 +1053,31 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 - [x] Kubernetes documentation (300+ lines)
 - [x] M1 Retrospective
 
-### 🚧 M2 - Networking & Health (Nov 26-30, 2025) - **IN PROGRESS**
+### ✅ M2 - Networking & Health (Nov 26-30, 2025) - **COMPLETE**
 
-- [x] Traefik ingress controller (IngressRoute with TLS)
-- [x] Envoy front-proxy (routing, health checks, load balancing)
-- [x] Envoy resilience policies (retries, timeouts, outlier ejection)
+**Delivered:**
+- [x] Traefik ingress controller (IngressRoute with self-signed TLS)
+- [x] Envoy front-proxy (routing, health checks, load balancing, admin interface)
+- [x] Envoy resilience policies (retries: 2, timeouts: 10s, outlier ejection: 5xx)
 - [x] Headless services for Envoy endpoint discovery
-- [x] HPA (Horizontal Pod Autoscaler)
-- [x] PDB (Pod Disruption Budget)
-- [x] NetworkPolicy (allow-list security)
+- [x] HPA (HorizontalPodAutoscaler) - auto-scaling 2-5 replicas
+- [x] PDB (PodDisruptionBudget) - zero-downtime updates
+- [x] NetworkPolicy - default-deny with Envoy allow-list
+- [x] Fault injection scripts (failure, slow, kill modes)
+- [x] M2 testing documentation and retrospective
 
-### 🔜 M3 - Resilience + Observability (Dec 1-15, 2025)
+**Key Achievements:**
+- ✅ Production-grade high availability (HPA + PDB)
+- ✅ Network security isolation (NetworkPolicy)
+- ✅ Resilience primitives verified (retries, timeouts, circuit breaker)
+- ✅ Reproducible chaos testing (fault-inject.sh)
+
+**Stats:** 11 commits, 5 days, 8 major features
+**DoD:** All criteria met ✅
+
+---
+
+### 🚧 M3 - Resilience + Observability (Dec 1-15, 2025) - **STARTING NOW**
 
 - [ ] Rate limiting (Envoy)
 - [ ] Circuit breaker patterns

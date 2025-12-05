@@ -1,6 +1,6 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Milestone](https://img.shields.io/badge/Milestone-M3%20Observability-blue)]()
-[![Project Progress](https://img.shields.io/badge/Progress-70%25-yellow)]()
+[![Project Progress](https://img.shields.io/badge/Progress-75%25-yellow)]()
 [![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 [![CD](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
 [![codecov](https://codecov.io/gh/lotoos0/resilience-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/lotoos0/resilience-lab)
@@ -1084,9 +1084,14 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 
 ---
 
-### 🚧 M3 - Resilience + Observability (Dec 1-15, 2025) - **STARTING NOW**
+### 🚧 M3 - Resilience + Observability (Dec 1-15, 2025) - **IN PROGRESS**
 
-- [ ] Rate limiting (Envoy)
+- [x] **Rate limiting** - Per-tenant throttling with Redis middleware
+  - 60 requests per minute per tenant
+  - Sliding window algorithm with Redis sorted sets
+  - X-Tenant header for tenant identification
+  - HTTP 429 response when limit exceeded
+  - Unit tests with 90%+ coverage
 - [ ] Circuit breaker patterns
 - [ ] Bulkhead isolation
 - [ ] Canary deployments
@@ -1157,4 +1162,4 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 
 **Built with ❤️ for cloud-native resilience engineering**
 
-_Last updated: December 01, 2025_
+_Last updated: December 05, 2025_

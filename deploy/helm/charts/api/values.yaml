@@ -9,6 +9,10 @@ service:
 env:
   - name: DATABASE_URL
     value: ""
+  - name: REDIS_HOST
+    value: "redis"
+  - name: REDIS_PORT
+    value: "6379"
   - name: REDIS_URL
     value: ""
   - name: PAYMENTS_URL

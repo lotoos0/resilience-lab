@@ -3,11 +3,11 @@
 import pytest
 from unittest.mock import Mock, AsyncMock
 from fastapi import Request, status
-from starlette.responses import JSONResponse
 
 # Import from parent directory
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from middleware.rate_limit import RateLimitMiddleware

@@ -229,6 +229,7 @@ TO_FIX.md
 PROJECT_PLAN_DETAILS.md
 checkin.md
 _helper.md
+_tasks.md
 
 # === MCP Configuration ===
 # Claude Desktop config - has absolute paths, don't commit

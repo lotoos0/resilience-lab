@@ -10,6 +10,7 @@ from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from redis import Redis
+from services.api.main import rl_allowed, rl_denied
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -86,5 +87,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         results = pipe.execute()
         request_count = results[1]  # zcard result
 
-        # Check if under limit
-        return request_count < self.max_requests
+        # Check if under limit and track metrics
+        if request_count < self.max_requests:
+            rl_allowed.labels(tenant=tenant_id).inc()
+            return True
+        else:
+            rl_denied.labels(tenant=tenant_id).inc()
+            return False

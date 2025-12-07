@@ -10,6 +10,15 @@ from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 from services.api.middleware.rate_limit import RateLimitMiddleware
 import httpx
+from prometheus_client import Counter, make_asgi_app
+
+# Metrics
+rl_allowed = Counter("rl_allowed_total", "Total allowed requests", ["tenant"])
+rl_denied = Counter("rl_denied_total", "Total denied requests", ["tenant"])
+
+# Mount metrics endpoint
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 app = FastAPI(title="Resilience Lab - API Service")
 
@@ -26,7 +35,7 @@ app.add_middleware(
     redis_client=redis_client,
     max_requests=60,
     window_seconds=60,  # per minute
-    tenant_header="X-Tenant"
+    tenant_header="X-Tenant",
 )
 
 

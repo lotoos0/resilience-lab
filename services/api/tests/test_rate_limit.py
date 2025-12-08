@@ -1,7 +1,7 @@
 """Tests for rate limit middleware."""
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 from fastapi import Request, status
 
 # Import from parent directory
@@ -33,9 +33,7 @@ def rate_limiter(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch('services.api.middleware.rate_limit.rl_allowed')
-@patch('services.api.middleware.rate_limit.rl_denied')
-async def test_rate_limit_allows_request_under_limit(mock_denied, mock_allowed, rate_limiter, mock_redis):
+async def test_rate_limit_allows_request_under_limit(rate_limiter, mock_redis):
     """Test that requests under limit are allowed."""
     # Setup: 3 requests in window (under limit of 5)
     mock_redis.pipeline.return_value.execute.return_value = [0, 3, True, True]
@@ -50,9 +48,7 @@ async def test_rate_limit_allows_request_under_limit(mock_denied, mock_allowed, 
 
 
 @pytest.mark.asyncio
-@patch('services.api.middleware.rate_limit.rl_allowed')
-@patch('services.api.middleware.rate_limit.rl_denied')
-async def test_rate_limit_blocks_request_over_limit(mock_denied, mock_allowed, rate_limiter, mock_redis):
+async def test_rate_limit_blocks_request_over_limit(rate_limiter, mock_redis):
     """Test that requests over limit are blocked with 429."""
     # Setup: 5 requests in window (at limit)
     mock_redis.pipeline.return_value.execute.return_value = [0, 5, True, True]
@@ -68,9 +64,7 @@ async def test_rate_limit_blocks_request_over_limit(mock_denied, mock_allowed, r
 
 
 @pytest.mark.asyncio
-@patch('services.api.middleware.rate_limit.rl_allowed')
-@patch('services.api.middleware.rate_limit.rl_denied')
-async def test_rate_limit_uses_default_tenant(mock_denied, mock_allowed, rate_limiter, mock_redis):
+async def test_rate_limit_uses_default_tenant(rate_limiter, mock_redis):
     """Test that missing X-Tenant header uses 'default'."""
     mock_redis.pipeline.return_value.execute.return_value = [0, 0, True, True]
 
@@ -84,9 +78,7 @@ async def test_rate_limit_uses_default_tenant(mock_denied, mock_allowed, rate_li
 
 
 @pytest.mark.asyncio
-@patch('services.api.middleware.rate_limit.rl_allowed')
-@patch('services.api.middleware.rate_limit.rl_denied')
-async def test_rate_limit_separate_tenants(mock_denied, mock_allowed, rate_limiter, mock_redis):
+async def test_rate_limit_separate_tenants(rate_limiter, mock_redis):
     """Test that different tenants have separate limits."""
     # Tenant A: 3 requests
     mock_redis.pipeline.return_value.execute.return_value = [0, 3, True, True]

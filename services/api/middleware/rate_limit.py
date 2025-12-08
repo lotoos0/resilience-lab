@@ -10,7 +10,11 @@ from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from redis import Redis
-from services.api.main import rl_allowed, rl_denied
+from prometheus_client import Counter
+
+# Metrics
+rl_allowed = Counter("rl_allowed_total", "Total allowed requests", ["tenant"])
+rl_denied = Counter("rl_denied_total", "Total denied requests", ["tenant"])
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

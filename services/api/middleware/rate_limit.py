@@ -5,6 +5,8 @@ Enforces per-tenant request limits with sliding window
 
 import time
 import uuid
+import logging
+import json
 from typing import Callable
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -12,6 +14,7 @@ from starlette.responses import JSONResponse
 from redis import Redis
 from prometheus_client import Counter
 
+logger = logging.getLogger(__name__)
 # Metrics
 rl_allowed = Counter("rl_allowed_total", "Total allowed requests", ["tenant"])
 rl_denied = Counter("rl_denied_total", "Total denied requests", ["tenant"])
@@ -45,7 +48,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         tenant_id = request.headers.get(self.tenant_header, "default")
 
         # Check rate limit
-        if not await self._check_rate_limit(tenant_id):
+        allowed, current_count = await self._check_rate_limit(tenant_id)
+
+        # Log rate limit check
+        logger.info(
+            "Rate limit check",
+            extra={
+                "tenant": tenant_id,
+                "path": request.url.path,
+                "current_count": current_count,
+                "limit": self.max_requests,
+                "status": "allowed" if allowed else "denied",
+            },
+        )
+
+        if not allowed:
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={
@@ -60,12 +77,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
-    async def _check_rate_limit(self, tenant_id: str) -> bool:
+    async def _check_rate_limit(self, tenant_id: str) -> tuple[bool, int]:
         """
         Check if tenant is within rate limit using sliding window.
 
         Returns:
-            True if request allowed, False if rate limit exceeded
+            Tuple of (allowed: bool, current_count: int)
         """
         key = f"rate_limit:{tenant_id}"
         current_time = int(time.time())
@@ -94,7 +111,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Check if under limit and track metrics
         if request_count < self.max_requests:
             rl_allowed.labels(tenant=tenant_id).inc()
-            return True
+            return True, request_count
         else:
             rl_denied.labels(tenant=tenant_id).inc()
-            return False
+            return False, request_count

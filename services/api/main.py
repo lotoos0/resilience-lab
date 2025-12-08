@@ -12,14 +12,6 @@ from services.api.middleware.rate_limit import RateLimitMiddleware
 import httpx
 from prometheus_client import Counter, make_asgi_app
 
-# Metrics
-rl_allowed = Counter("rl_allowed_total", "Total allowed requests", ["tenant"])
-rl_denied = Counter("rl_denied_total", "Total denied requests", ["tenant"])
-
-# Mount metrics endpoint
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
-
 app = FastAPI(title="Resilience Lab - API Service")
 
 PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://localhost:8001")
@@ -37,6 +29,14 @@ app.add_middleware(
     window_seconds=60,  # per minute
     tenant_header="X-Tenant",
 )
+
+# Metrics
+rl_allowed = Counter("rl_allowed_total", "Total allowed requests", ["tenant"])
+rl_denied = Counter("rl_denied_total", "Total denied requests", ["tenant"])
+
+# Mount metrics endpoint
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 class PaymentRequest(BaseModel):

@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from middleware.rate_limit import RateLimitMiddleware
+from ..middleware.rate_limit import RateLimitMiddleware
 
 
 @pytest.fixture

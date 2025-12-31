@@ -16,9 +16,13 @@ redis==5.0.1
 httpx==0.25.1
 requests==2.31.0
 
+# Monitoring
+prometheus-client==0.19.0
+
 # Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1
+pytest-cov==4.1.0
 
 # Linting/formatting (optional, for local dev)
 ruff==0.1.6

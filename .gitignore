@@ -221,14 +221,16 @@ backups/
 # === System / cache ===
 .DS_Store
 Thumbs.db
+
+# Files
 PROJECT_PLAN_EN.md
 PROJECT_PLAN_PL.md
-TODO.md
-PLAN_TODAY.md
 TO_FIX.md
 PROJECT_PLAN_DETAILS.md
 checkin.md
 _helper.md
+_tasks.md
+TODO_OLD_2025.md
 
 # === MCP Configuration ===
 # Claude Desktop config - has absolute paths, don't commit
@@ -240,6 +242,7 @@ claude_desktop_config.json.example
 
 # Local env overrides
 .env.mcp
+.mcp.json
 .env.mcp.local
 .env.mcp.example
 

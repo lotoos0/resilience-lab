@@ -79,6 +79,14 @@ data:
         - name: api_service
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
+          connect_timeout: 0.5s
+          circuit_breakers:
+            thresholds:
+              - priority: DEFAULT
+                max_connections: 100
+                max_pending_requests: 50
+                max_requests: 100
+                max_retries: 3
           load_assignment:
             cluster_name: api_service
             endpoints:
@@ -117,6 +125,14 @@ data:
         - name: payments_service
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
+          connect_timeout: 0.5s
+          circuit_breakers:
+            thresholds:
+              - priority: DEFAULT
+                max_connections: 100
+                max_pending_requests: 50
+                max_requests: 100
+                max_retries: 3
           load_assignment:
             cluster_name: payments_service
             endpoints:

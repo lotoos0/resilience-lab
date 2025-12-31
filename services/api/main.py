@@ -4,14 +4,35 @@ Handles payment requests and communicates with Payments service.
 """
 
 import os
+import redis
 from typing import Dict, Any
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
+from services.api.middleware.rate_limit import RateLimitMiddleware
 import httpx
+from prometheus_client import make_asgi_app
 
 app = FastAPI(title="Resilience Lab - API Service")
 
 PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://localhost:8001")
+
+# Redis connection
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+
+# Add rate limiting middleware
+app.add_middleware(
+    RateLimitMiddleware,
+    redis_client=redis_client,
+    max_requests=60,
+    window_seconds=60,  # per minute
+    tenant_header="X-Tenant",
+)
+
+# Mount metrics endpoint
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 class PaymentRequest(BaseModel):

@@ -74,12 +74,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run unit tests
-        run: pytest -v -m "not integration"
+        run: pip install -r requirements.txt pytest-cov
+      - name: Run unit tests with coverage
+        run: pytest -v -m "not integration" --cov=services --cov-report=xml --cov-report=term
         env:
           DATABASE_URL: postgresql://resilience:resilience@localhost:5432/resilience_db
           REDIS_URL: redis://localhost:6379
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
   integration-test:
     runs-on: ubuntu-latest
     needs: [lint, test]

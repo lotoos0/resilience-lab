@@ -2,7 +2,7 @@
 api:
   replicaCount: 1
   image:
-    tag: dev
+    tag: 8b86f3d
   env:
     - name: LOG_LEVEL
       value: DEBUG

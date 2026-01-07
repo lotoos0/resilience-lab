@@ -20,3 +20,7 @@ spec:
       port: 8000
     - protocol: TCP
       port: 8001
+  # Allow Redis connection
+  - ports:
+    - protocol: TCP
+      port: 6379

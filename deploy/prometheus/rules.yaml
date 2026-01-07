@@ -1,0 +1,67 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: resilience-lab-rules
+  namespace: monitoring
+  labels:
+    release: prometheus  # Required for kube-prometheus-stack
+spec:
+  groups:
+    # Envoy metrics - these will work immediately
+    - name: envoy_metrics
+      interval: 30s
+      rules:
+        # Request rate per cluster
+        - record: envoy:http_requests:rate5m
+          expr: rate(envoy_cluster_upstream_rq_total[5m])
+
+        # Error rate (5xx responses)
+        - record: envoy:http_errors_5xx:rate5m
+          expr: rate(envoy_cluster_upstream_rq_xx{envoy_response_code_class="5"}[5m])
+
+        # Request duration p95
+        - record: envoy:http_request_duration:p95
+          expr: histogram_quantile(0.95, rate(envoy_cluster_upstream_rq_time_bucket[5m]))
+
+        # Upstream connection pool
+        - record: envoy:upstream_connections:current
+          expr: envoy_cluster_upstream_cx_active
+
+    # API metrics - will work when /metrics endpoint is available
+    - name: api_metrics
+      interval: 30s
+      rules:
+        # HTTP request rate
+        - record: api:http_requests:rate5m
+          expr: rate(http_requests_total{job="resilience-lab-api"}[5m])
+
+        # HTTP error rate (5xx)
+        - record: api:http_errors:rate5m
+          expr: rate(http_requests_total{job="resilience-lab-api",status=~"5.."}[5m])
+
+        # Rate limiting denied requests
+        - record: api:rate_limit_denied:rate5m
+          expr: rate(rl_denied_total[5m])
+
+        # Rate limiting allowed requests
+        - record: api:rate_limit_allowed:rate5m
+          expr: rate(rl_allowed_total[5m])
+
+    # System health metrics
+    - name: system_health
+      interval: 30s
+      rules:
+        # Pod availability
+        - record: resilience_lab:pod_available:count
+          expr: count(up{namespace="resilience-lab"} == 1)
+
+        # Total pods
+        - record: resilience_lab:pod_total:count
+          expr: count(up{namespace="resilience-lab"})
+
+        # Availability ratio
+        - record: resilience_lab:availability:ratio
+          expr: |
+            resilience_lab:pod_available:count
+            /
+            resilience_lab:pod_total:count

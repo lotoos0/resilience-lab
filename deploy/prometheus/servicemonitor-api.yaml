@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: resilience-lab-api-metrics
+  namespace: monitoring
+  labels:
+    app: resilience-lab-api
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  namespaceSelector:
+    matchNames:
+      - resilience-lab
+      - default  # Support both namespaces
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

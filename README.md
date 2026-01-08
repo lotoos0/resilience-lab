@@ -40,6 +40,7 @@ Upcoming milestones extend this lab with observability (Prometheus, Grafana, Lok
 - [Testing](#-testing)
 - [CI/CD](#-cicd)
 - [Roadmap](#-roadmap)
+- [Additional Resources](#-additional-resources)
 - [License](#-license)
 
 ---
@@ -1119,6 +1120,15 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute, PR process, commit format
 - **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
 - **[Retrospectives](docs/RETROSPECTIVES.md)** - Milestone retrospectives and lessons learned
+
+### Operations & Resilience
+
+This project includes real incident-based operational runbooks covering:
+- Prometheus metrics scraping failures
+- NetworkPolicy ingress/egress misconfigurations
+- Dependency failure impact (Redis connectivity)
+
+**See:** [Operational Runbooks](docs/runbooks/README.md)
 
 ### API Documentation
 

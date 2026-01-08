@@ -1,0 +1,21 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        branches:
+          - main
+          - develop
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        branches:
+          - main
+          - develop
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false

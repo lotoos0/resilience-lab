@@ -3,8 +3,11 @@
 # Runbook: Prometheus cannot scrape API /metrics
 
 **Status:** Active
+
 **Owner:** Tomasz P. DevOps Team
+
 **Last Updated:** 2026-01-08
+
 **Severity:** P2 (Observability degradation)
 
 ## Description
@@ -28,7 +31,10 @@ Prometheus cannot scrape endpoint `/metrics` from API in namespace `resilience-l
 
 ## Root Cause
 
-Middleware rate-limiting attempts to connect to Redis, but: - Redis does not have an **Ingress NetworkPolicy** - Connection timeout -> exception -> API responds with 500 - `/metrics` cannot be returned
+Middleware rate-limiting attempts to connect to Redis, but: 
+- Redis does not have an **Ingress NetworkPolicy** 
+- Connection timeout -> exception -> API responds with 500 
+-`/metrics` cannot be returned
 
 ## Pre-flight Checks
 

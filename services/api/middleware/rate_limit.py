@@ -33,15 +33,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         max_requests: int = 60,
         window_seconds: int = 60,
         tenant_header: str = "X-Tenant",
+        excluded_paths: tuple[str, ...] = ("/healthz", "/metrics"),
     ):
         super().__init__(app)
         self.redis = redis_client
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.tenant_header = tenant_header
+        self.excluded_paths = excluded_paths
 
     async def dispatch(self, request: Request, call_next: Callable):
         """Process request with rate limiting."""
+        if request.url.path in self.excluded_paths:
+            return await call_next(request)
 
         # Get tenant from header (default: 'default')
         tenant_id = request.headers.get(self.tenant_header, "default")

@@ -65,3 +65,52 @@ spec:
             resilience_lab:pod_available:count
             /
             resilience_lab:pod_total:count
+
+    # Basic v0.1.0 alerting baseline
+    - name: resilience_lab_alerts
+      interval: 30s
+      rules:
+        # API 5xx ratio is above 5% while the API is receiving traffic.
+        - alert: HighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{job="resilience-lab-api",status=~"5..|5xx"}[5m]))
+              /
+              clamp_min(sum(rate(http_requests_total{job="resilience-lab-api"}[5m])), 0.001)
+            ) > 0.05
+            and
+            sum(rate(http_requests_total{job="resilience-lab-api"}[5m])) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            service: api
+          annotations:
+            summary: "High API error rate"
+            description: "More than 5% of API requests have returned 5xx responses for 5 minutes."
+
+        # The API metrics target is down or unreachable.
+        - alert: APIDown
+          expr: |
+            up{job="resilience-lab-api"} == 0
+            or
+            absent(up{job="resilience-lab-api"})
+          for: 1m
+          labels:
+            severity: critical
+            service: api
+          annotations:
+            summary: "API target is down"
+            description: "Prometheus cannot scrape the resilience-lab API target."
+
+        # Any scrape target in the resilience-lab namespace is down.
+        - alert: PrometheusTargetDown
+          expr: |
+            up{namespace="resilience-lab"} == 0
+            or
+            absent(up{namespace="resilience-lab"})
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Prometheus target is down"
+            description: "Prometheus target {{ $labels.job }} / {{ $labels.instance }} in namespace {{ $labels.namespace }} has been down for more than 2 minutes."

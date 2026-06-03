@@ -1,5 +1,9 @@
 # 🔄 Resilience Lab - 2026 Refactoring Plan
 
+> **Superseded recovery draft:** This January 2026 plan is no longer the execution source of truth.
+>
+> Use `docs/CURRENT_PLAN.md` for the active v0.1.0 plan. Keep this file as historical context and as input for post-v0.1.0 backlog decisions.
+
 **Created:** December 31, 2025
 **Start Date:** January 1, 2026
 **Goal:** Complete resilience-lab project after suspension

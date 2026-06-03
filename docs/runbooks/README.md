@@ -8,6 +8,7 @@ observed during the development of the Resilience Lab project.
 | Runbook | Severity | Status | Description |
 |---------|----------|--------|-------------|
 | [TEMPLATE](./TEMPLATE.md) | - | Active | Template for new runbooks |
+| [Prometheus targets missing or firing after observability setup](./TROUBLESHOOTING_OBSERVABILITY_TARGETS.md) | P2 | Active | ServiceMonitor discovery, API /metrics 500, Envoy apply, HPA/Helm conflicts |
 | [Prometheus cannot scrape API /metrics](./TROUBLESHOOTING_PROMETHEUS_SCRAPE.md) | P2 | Active | Redis connectivity + NetworkPolicy ingress issue |
 
 ## Scope

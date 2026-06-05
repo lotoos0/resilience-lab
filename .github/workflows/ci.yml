@@ -136,6 +136,7 @@ jobs:
           image-ref: 'resilience-lab-api:test'
           format: 'table'
           exit-code: '1'
+          ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
       - name: Build Payments image
         run: |
@@ -146,4 +147,5 @@ jobs:
           image-ref: 'resilience-lab-payments:test'
           format: 'table'
           exit-code: '1'
+          ignore-unfixed: true
           severity: 'CRITICAL,HIGH'

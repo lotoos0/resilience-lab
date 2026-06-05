@@ -1,0 +1,15 @@
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+grafana:
+  enabled: true
+  adminPassword: changeme  # override via: helm install --set grafana.adminPassword=<your-password>
+  alertmanager:
+    enabled: true

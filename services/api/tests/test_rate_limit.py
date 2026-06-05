@@ -39,6 +39,7 @@ async def test_rate_limit_allows_request_under_limit(rate_limiter, mock_redis):
     mock_redis.pipeline.return_value.execute.return_value = [0, 3, True, True]
 
     request = Mock(spec=Request)
+    request.url.path = "/pay"
     request.headers = {"X-Tenant": "test-tenant"}
 
     call_next = AsyncMock(return_value=Mock(status_code=200))
@@ -54,6 +55,7 @@ async def test_rate_limit_blocks_request_over_limit(rate_limiter, mock_redis):
     mock_redis.pipeline.return_value.execute.return_value = [0, 5, True, True]
 
     request = Mock(spec=Request)
+    request.url.path = "/pay"
     request.headers = {"X-Tenant": "test-tenant"}
 
     call_next = AsyncMock(return_value=Mock(status_code=200))
@@ -69,6 +71,7 @@ async def test_rate_limit_uses_default_tenant(rate_limiter, mock_redis):
     mock_redis.pipeline.return_value.execute.return_value = [0, 0, True, True]
 
     request = Mock(spec=Request)
+    request.url.path = "/pay"
     request.headers = {}
 
     call_next = AsyncMock(return_value=Mock(status_code=200))
@@ -78,12 +81,29 @@ async def test_rate_limit_uses_default_tenant(rate_limiter, mock_redis):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/healthz", "/metrics"])
+async def test_rate_limit_bypasses_operational_endpoints(rate_limiter, mock_redis, path):
+    """Test that health and metrics endpoints do not require Redis."""
+    request = Mock(spec=Request)
+    request.url.path = path
+    request.headers = {}
+
+    call_next = AsyncMock(return_value=Mock(status_code=200))
+
+    response = await rate_limiter.dispatch(request, call_next)
+
+    assert response.status_code == 200
+    mock_redis.pipeline.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_rate_limit_separate_tenants(rate_limiter, mock_redis):
     """Test that different tenants have separate limits."""
     # Tenant A: 3 requests
     mock_redis.pipeline.return_value.execute.return_value = [0, 3, True, True]
 
     request_a = Mock(spec=Request)
+    request_a.url.path = "/pay"
     request_a.headers = {"X-Tenant": "tenant-a"}
 
     call_next = AsyncMock(return_value=Mock(status_code=200))
@@ -93,6 +113,7 @@ async def test_rate_limit_separate_tenants(rate_limiter, mock_redis):
 
     # Tenant B: also 3 requests (separate limit)
     request_b = Mock(spec=Request)
+    request_b.url.path = "/pay"
     request_b.headers = {"X-Tenant": "tenant-b"}
 
     response_b = await rate_limiter.dispatch(request_b, call_next)

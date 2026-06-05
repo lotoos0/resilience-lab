@@ -1,5 +1,9 @@
 # 🔄 Resilience Lab - 2026 Refactoring Plan
 
+> **Superseded recovery draft:** This January 2026 plan is no longer the execution source of truth.
+>
+> Use `docs/CURRENT_PLAN.md` for the active v0.1.0 plan. Keep this file as historical context and as input for post-v0.1.0 backlog decisions.
+
 **Created:** December 31, 2025
 **Start Date:** January 1, 2026
 **Goal:** Complete resilience-lab project after suspension
@@ -399,68 +403,6 @@
 | 3 | Jan 15-22 | Polish + Release | Demo, Runbooks, v0.1.0 |
 
 **Total:** 22 working days (3 weeks)
-
----
-
-## 🚀 How to Start on January 1st?
-
-### Pre-flight checklist (Dec 31, 2025):
-1. ✅ Read this document
-2. ✅ Understand current project state
-3. ✅ Verify cluster is running: `kubectl get pods -n resilience-lab`
-4. ✅ Check last commit: `git log --oneline -5`
-5. ✅ Ensure tests pass: `make test` (if make target exists)
-
-### First commit Jan 1, 2026:
-```bash
-# Update TODO.md with tasks from this document
-vim docs/TODO.md
-
-git add docs/TODO.md docs/REFACTORING_PLAN_2026.md
-git commit -m "[DAY25] docs: create 2026 refactoring plan - restart after project pause"
-git push
-```
-
-### Daily routine:
-1. **Morning (9:00):** Review daily plan from PLAN_TODAY.md
-2. **Work (9:30-12:30, 14:00-17:00):** 4-5h intensive work
-3. **Commits:** 3-5 atomic commits per day
-4. **Evening (17:00):** Update TODO.md, prepare PLAN_TODAY.md for tomorrow
-
----
-
-## 💡 Key Architectural Decisions
-
-**Confirmed from previous plan:**
-1. ✅ Envoy as L7 proxy (not Istio)
-2. ✅ Redis for rate limiting state
-3. ✅ kube-prometheus-stack (not custom Prometheus)
-4. ✅ Helm for deployment
-5. ✅ GitHub Actions for CI/CD
-
-**New for MVP:**
-6. ✅ Manual canary (not automated CD) - for simplicity
-7. ✅ Manual chaos testing (not Chaos Mesh) - less complexity
-8. ✅ 2 services (API, Payments) - sufficient for pattern demonstration
-9. ✅ Basic SLO (simple burn rate) - not multi-window for MVP
-
----
-
-## 📝 Notes
-
-**Technical Debt (to do AFTER v0.1.0):**
-- Automated Canary CD pipeline
-- Chaos Mesh integration
-- Distributed tracing (Jaeger/Tempo)
-- Service catalog + worker services
-- Advanced SLO (multi-window burn rate)
-- Cost optimization (resource rightsizing)
-
-**Lessons Learned:**
-- Plan was too ambitious for 2 months part-time work
-- Time buffers were too small
-- MVP approach should have been from the start
-- Daily commits make progress tracking easier
 
 ---
 

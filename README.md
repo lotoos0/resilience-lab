@@ -1,6 +1,6 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Milestone](https://img.shields.io/badge/Milestone-M3%20Observability-blue)]()
-[![Project Progress](https://img.shields.io/badge/Progress-75%25-yellow)]()
+[![Project Progress](https://img.shields.io/badge/Progress-85%25-yellow)]()
 [![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 [![CD](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
 [![codecov](https://codecov.io/gh/lotoos0/resilience-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/lotoos0/resilience-lab)
@@ -14,7 +14,7 @@
 > FastAPI + PostgreSQL + Redis today
 > Helm, GitHub Actions, security baseline, CI pipeline already in place
 > Envoy + Traefik networking layer with resilience policies (retry, timeout, circuit breaker)
-> Prometheus, Grafana, Loki and chaos tooling – planned in upcoming milestones.
+> Prometheus metrics, Grafana dashboards, and alert rules deployed (M3)
 
 Resilience Lab is a hands-on platform for learning and practicing cloud-native resilience patterns.  
 It provides a realistic microservices environment (API + Payments + PostgreSQL + Redis) with:
@@ -24,8 +24,7 @@ It provides a realistic microservices environment (API + Payments + PostgreSQL +
 - CI/CD pipeline (lint → unit → integration → build → publish to GHCR),
 - security baseline (non-root, healthchecks, Trivy scans).
 
-Current milestone (M2) provides production-grade networking layer with Traefik ingress controller and Envoy front-proxy featuring resilience policies (retry, timeout, circuit breaker).
-Upcoming milestones extend this lab with observability (Prometheus, Grafana, Loki) and chaos experiments.
+M2 delivered a production-grade networking layer with Traefik ingress and Envoy front-proxy (retry, timeout, circuit breaker). M3 adds per-tenant rate limiting, Prometheus metrics with ServiceMonitors and recording rules, basic alert rules, and a Grafana system overview dashboard. Loki log aggregation and the resilience dashboard are the remaining M3 items.
 
 ---
 
@@ -40,6 +39,7 @@ Upcoming milestones extend this lab with observability (Prometheus, Grafana, Lok
 - [Testing](#-testing)
 - [CI/CD](#-cicd)
 - [Roadmap](#-roadmap)
+- [Additional Resources](#-additional-resources)
 - [License](#-license)
 
 ---
@@ -1084,7 +1084,7 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 
 ---
 
-### 🚧 M3 - Resilience + Observability (Dec 1-15, 2025) - **IN PROGRESS**
+### 🚧 M3 - Resilience + Observability - **IN PROGRESS (~85%)**
 
 - [x] **Rate limiting** - Per-tenant throttling with Redis middleware
   - 60 requests per minute per tenant
@@ -1092,20 +1092,21 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
   - X-Tenant header for tenant identification
   - HTTP 429 response when limit exceeded
   - Unit tests with 90%+ coverage
-- [ ] Circuit breaker patterns
-- [ ] Bulkhead isolation
-- [ ] Canary deployments
-- [ ] Prometheus metrics
-- [ ] Grafana dashboards
-- [ ] Loki log aggregation
+  - k6 load test validation
+- [x] **Prometheus metrics** - ServiceMonitors for API and Envoy, recording rules
+- [x] **Grafana dashboard** - System overview (`deploy/grafana/dashboards/system-overview.json`)
+- [x] **Alert rules** - HighErrorRate, APIDown, PrometheusTargetDown
+- [x] **NetworkPolicy fixes** - Prometheus scrape paths to API and Envoy
+- [x] **Operational runbooks** - Prometheus scrape and observability target troubleshooting
+- [ ] Loki + Promtail log aggregation (#38)
+- [ ] Grafana resilience dashboard (rate limiting, circuit breaker panels) (#36, #37)
 
-### 🔜 M4 - Release (Dec 16-31, 2025)
+### 🔜 M4 - Security + Ops + Release
 
-- [ ] Chaos engineering (Chaos Mesh)
-- [ ] Backup/restore procedures
-- [ ] Performance testing
-- [ ] Documentation site
-- [ ] v1.0.0 release
+- [ ] Security audit and backup/restore procedures
+- [ ] Chaos testing scenarios
+- [ ] CHANGELOG and release notes
+- [ ] v0.1.0 tag and GitHub Release
 
 ---
 
@@ -1119,6 +1120,15 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute, PR process, commit format
 - **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
 - **[Retrospectives](docs/RETROSPECTIVES.md)** - Milestone retrospectives and lessons learned
+
+### Operations & Resilience
+
+This project includes real incident-based operational runbooks covering:
+- Prometheus metrics scraping failures
+- NetworkPolicy ingress/egress misconfigurations
+- Dependency failure impact (Redis connectivity)
+
+**See:** [Operational Runbooks](docs/runbooks/README.md)
 
 ### API Documentation
 

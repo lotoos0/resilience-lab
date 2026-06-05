@@ -129,7 +129,7 @@ Any other relevant information
 3. **Commit changes** (follow commit format below):
    ```bash
    git add .
-   git commit -m "[DAY##] feat: your feature description"
+   git commit -m "feat: your feature description"
    ```
 
 4. **Push to your fork**:
@@ -145,7 +145,7 @@ Any other relevant information
 ### PR Title Format
 
 ```
-[DAY##] type: short description
+type: short description
 ```
 
 **Types**:
@@ -158,9 +158,9 @@ Any other relevant information
 - `chore` - Maintenance tasks
 
 **Examples**:
-- `[DAY03] feat: add payment validation endpoint`
-- `[DAY05] fix: correct healthcheck timeout`
-- `[DAY07] docs: update deployment guide`
+- `feat: add payment validation endpoint`
+- `fix: correct healthcheck timeout`
+- `docs: update deployment guide`
 
 ### PR Description Template
 
@@ -396,7 +396,7 @@ make test
 ### Standard Format
 
 ```
-[DAY##] type: short description
+type: short description
 
 Optional longer description explaining the change in more detail.
 
@@ -406,12 +406,7 @@ Related to #456
 
 ### Components
 
-1. **[DAY##]** - Day number in project timeline
-   - Required for all commits
-   - Tracks progress across milestones
-   - Example: `[DAY01]`, `[DAY15]`
-
-2. **type** - Type of change:
+1. **type** - Type of change:
    - `feat` - New feature
    - `fix` - Bug fix
    - `docs` - Documentation only
@@ -422,7 +417,7 @@ Related to #456
    - `perf` - Performance improvements
    - `style` - Code style changes (formatting)
 
-3. **description** - Short summary (50 chars or less)
+2. **description** - Short summary (50 chars or less)
    - Use imperative mood: "add" not "added"
    - Don't capitalize first letter (lowercase)
    - No period at the end
@@ -432,34 +427,31 @@ Related to #456
 **Good commits**:
 
 ```bash
-[DAY01] feat: add payment processing endpoint
-[DAY02] fix: correct validation error in payment request
-[DAY03] docs: update deployment guide with K8s instructions
-[DAY05] test: add integration tests for payment flow
-[DAY07] ci: add caching to GitHub Actions workflow
-[DAY10] refactor: extract payment validation to separate module
+feat: add payment processing endpoint
+fix: correct validation error in payment request
+docs: update deployment guide with K8s instructions
+test: add integration tests for payment flow
+ci: add caching to GitHub Actions workflow
+refactor: extract payment validation to separate module
 ```
 
 **Bad commits**:
 
 ```bash
-# ❌ Missing [DAY##]
-feat: add payment endpoint
-
 # ❌ No type
-[DAY01] Add payment endpoint
+Add payment endpoint
 
 # ❌ Too vague
-[DAY01] fix: fix bug
+fix: fix bug
 
 # ❌ Past tense
-[DAY01] feat: added payment endpoint
+feat: added payment endpoint
 
 # ❌ Capitalized
-[DAY01] feat: Add payment endpoint
+feat: Add payment endpoint
 
 # ❌ Period at end
-[DAY01] feat: add payment endpoint.
+feat: add payment endpoint.
 ```
 
 ### Multi-line Commit Messages
@@ -467,7 +459,7 @@ feat: add payment endpoint
 For complex changes, use detailed body:
 
 ```bash
-git commit -m "[DAY05] feat: add circuit breaker pattern
+git commit -m "feat: add circuit breaker pattern
 
 Implement circuit breaker for external payment gateway calls.
 Uses half-open state for recovery testing.
@@ -635,7 +627,7 @@ All PRs must pass:
 | **M3**    | Resilience + Observability | 01–15.12 | Rate-limit, bulkhead, Prometheus, Grafana, Loki     |
 | **M4**    | Security + Chaos + Release | 16–31.12 | Backup/restore, chaos tests, polish, release v0.1.0 |
 
-Each milestone has a Definition of Done (DoD) tracked through `[DAY##]` commits and GitHub issues.
+Each milestone has a Definition of Done (DoD) tracked through commits and GitHub issues.
 
 See [README.md](README.md#-roadmap) for detailed roadmap.
 

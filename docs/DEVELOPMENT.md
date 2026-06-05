@@ -143,7 +143,7 @@ make lint           # Final check
 
 # 5. Commit and push
 git add .
-git commit -m "[DAYxx] feat: your feature"
+git commit -m "feat: your feature description"
 git push origin feature/your-feature
 ```
 

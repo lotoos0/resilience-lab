@@ -11,7 +11,8 @@ WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade "wheel>=0.46.2" && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code (will be added in next commits)
 COPY services/api/ ./services/api/

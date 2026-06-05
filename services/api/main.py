@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 from services.api.middleware.rate_limit import RateLimitMiddleware
 import httpx
-from prometheus_client import make_asgi_app
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI(title="Resilience Lab - API Service")
 
@@ -18,7 +18,10 @@ PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://localhost:8001")
 
 # Redis connection
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+# Use REDIS_SERVICE_PORT to avoid collision with K8s auto-created REDIS_PORT env var
+REDIS_PORT = int(
+    os.getenv("REDIS_SERVICE_PORT", os.getenv("REDIS_PORT_NUMBER", "6379"))
+)
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 # Add rate limiting middleware
@@ -31,8 +34,7 @@ app.add_middleware(
 )
 
 # Mount metrics endpoint
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 class PaymentRequest(BaseModel):

@@ -10,6 +10,6 @@ prometheus:
               storage: 10Gi
 grafana:
   enabled: true
-  adminPassword: admin123 #about to change this
+  adminPassword: changeme  # override via: helm install --set grafana.adminPassword=<your-password>
   alertmanager:
     enabled: true

@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Trivy vulnerability scanner (filesystem)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -131,7 +131,7 @@ jobs:
         run: |
           docker build -t resilience-lab-api:test -f services/api/Dockerfile .
       - name: Run Trivy scanner on API image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'resilience-lab-api:test'
           format: 'table'
@@ -143,7 +143,7 @@ jobs:
         run: |
           docker build -t resilience-lab-payments:test -f services/payments/Dockerfile .
       - name: Run Trivy scanner on Payments image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'resilience-lab-payments:test'
           format: 'table'

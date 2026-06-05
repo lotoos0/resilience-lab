@@ -42,14 +42,14 @@ The following packages are explicitly pinned in `requirements.txt` to override v
 
 ### Dockerfile upgrade step
 
-Both service Dockerfiles include an explicit upgrade before the main `pip install` to ensure the base image's pre-installed `wheel` is replaced:
+Both service Dockerfiles include an explicit upgrade before the main `pip install`:
 
 ```dockerfile
 RUN pip install --upgrade "wheel>=0.46.2" && \
     pip install --no-cache-dir -r requirements.txt
 ```
 
-Without the explicit `--upgrade` step, `pip install -r requirements.txt` does not upgrade packages already present in the base image layer, even when the version constraint is not satisfied.
+This is defense-in-depth. The primary fix for the `wheel` CVE finding is `skip-dirs` above (the finding originated from `setuptools/_vendor/wheel-0.45.1`, not from the standalone `wheel` package — which pip already installs at `>=0.46.2` via `requirements.txt`). The explicit `--upgrade` step guards against a separate edge case: packages pre-installed in the base image layer are not always upgraded by `pip install -r requirements.txt` without `--upgrade`, even when the installed version does not satisfy the pinned constraint.
 
 ---
 

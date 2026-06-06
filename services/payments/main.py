@@ -83,7 +83,7 @@ async def process_payment(payment: PaymentProcessRequest) -> Dict[str, Any]:
 async def get_payment(payment_id: str) -> Dict[str, Any]:
     """Retrieve a payment by ID."""
     if payment_id not in payments_store:
-        return {"error": "payment not found"}, 404
+        raise HTTPException(status_code=404, detail="payment not found")
 
     return payments_store[payment_id]
 

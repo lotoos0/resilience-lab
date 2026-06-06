@@ -49,8 +49,8 @@ def test_process_payment_invalid_amount():
 @pytest.mark.unit
 def test_get_payment_not_found():
     response = client.get("/payments/nonexistent-id")
-    assert response.status_code == 200
-    assert "error" in response.json()
+    assert response.status_code == 404
+    assert response.json()["detail"] == "payment not found"
 
 
 @pytest.mark.unit

@@ -2,7 +2,7 @@
 
 **Resilience Lab - System Architecture**
 
-*Last updated: November 18, 2025*
+*Last updated: 2026-06-06*
 
 ---
 
@@ -141,12 +141,14 @@ Resilience Lab is built as a **microservices architecture** designed for cloud-n
 **Key Features**:
 - Health checks: `GET /healthz`
 - OpenAPI docs: `GET /docs`
-- Future: Authentication, rate limiting
+- Payment proxy: `POST /pay` → forwards to Payments service
+- Metrics: `GET /metrics` (Prometheus)
+- Rate limiting: Redis-backed, 60 req/min per tenant (`X-Tenant` header)
+- Future: Authentication (JWT/OAuth2)
 
 **Configuration**:
 - Port: 8000
-- Database: PostgreSQL (shared)
-- Cache: Redis (shared)
+- Cache: Redis (rate limiting)
 
 ---
 
@@ -188,9 +190,11 @@ Resilience Lab is built as a **microservices architecture** designed for cloud-n
 
 **Key Features**:
 - `POST /process` - Process payment
-- `GET /payments/{id}` - Get payment details
+- `GET /payments/{id}` - Get payment details (404 via `HTTPException` when not found)
 - `GET /healthz` - Health check
-- Validation: Amount > 0, Currency format
+- `GET /metrics` - Prometheus metrics
+- Validation: Amount > 0, ISO 4217 currency code
+- Fault injection: `FAIL_MODE` (500 errors), `SLOW_MODE` (2 s delay) via env vars
 
 **Configuration**:
 - Port: 8001

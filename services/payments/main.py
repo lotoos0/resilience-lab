@@ -9,8 +9,11 @@ import uuid
 from typing import Dict, Any
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI(title="Resilience Lab - Payments Service")
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # Fault injection flags (for resilience testing)
 FAIL_MODE = os.getenv("FAIL_MODE", "0") == "1"

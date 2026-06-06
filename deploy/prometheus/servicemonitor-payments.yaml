@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: resilience-lab-payments-metrics
+  namespace: monitoring
+  labels:
+    app: resilience-lab-payments
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payments
+  namespaceSelector:
+    matchNames:
+      - resilience-lab
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

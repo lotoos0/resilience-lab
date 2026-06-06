@@ -1,7 +1,7 @@
 replicaCount: 2
 image:
   repository: ghcr.io/lotoos0/resilience-lab-api
-  tag: latest
+  tag: metrics-bypass
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP

@@ -1,9 +1,9 @@
 # Runbook: Minikube — ImagePullBackOff for Local Images
 
 **Status:** Active
-**Owner:** lotoos0
+**Owner:** DevOps Team
 **Last Updated:** 2026-06-06
-**Severity:** P2 (Medium)
+**Severity:** P2 (Service unavailable)
 
 ## Description
 

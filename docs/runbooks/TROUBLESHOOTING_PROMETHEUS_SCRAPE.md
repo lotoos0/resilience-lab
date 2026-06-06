@@ -4,7 +4,7 @@
 
 **Status:** Active
 
-**Owner:** Tomasz P. DevOps Team
+**Owner:** DevOps Team
 
 **Last Updated:** 2026-01-08
 

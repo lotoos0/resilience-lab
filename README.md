@@ -512,12 +512,13 @@ deploy/helm/
 - **Purpose**: Main API gateway
 - **Tech Stack**: FastAPI, Python 3.11
 - **Responsibilities**:
-  - Request routing
+  - Request routing to Payments service
+  - Rate limiting (Redis-backed, 60 req/min per tenant)
   - Authentication (future)
-  - Rate limiting (future)
 - **Endpoints**:
   - `GET /healthz` - Health check
-  - More endpoints coming in M1
+  - `POST /pay` - Create payment (proxied to Payments service)
+  - `GET /metrics` - Prometheus metrics
 
 #### Payments Service (`services/payments/`)
 
@@ -530,6 +531,7 @@ deploy/helm/
   - `GET /healthz` - Health check
   - `POST /process` - Process payment
   - `GET /payments/{id}` - Get payment by ID
+  - `GET /metrics` - Prometheus metrics
 
 #### Networking Layer
 
@@ -905,16 +907,30 @@ open htmlcov/index.html
 
 ### Writing Tests
 
-**Unit Test Example:**
+**Unit Test Example (service-level, no external dependencies):**
 
 ```python
-# tests/test_sanity.py
-def test_sanity():
-    """Basic sanity check."""
-    assert 1 + 1 == 2
+# services/payments/tests/test_main.py
+import pytest
+from fastapi.testclient import TestClient
+from ..main import app
+
+client = TestClient(app)
+
+@pytest.mark.unit
+def test_process_payment():
+    response = client.post("/process", json={"amount": 10.0, "currency": "USD"})
+    assert response.status_code == 201
+    assert response.json()["status"] == "completed"
+
+@pytest.mark.unit
+def test_get_payment_not_found():
+    response = client.get("/payments/nonexistent-id")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "payment not found"
 ```
 
-**Integration Test Example:**
+**Integration Test Example (requires running services):**
 
 ```python
 # tests/test_integration.py
@@ -924,7 +940,6 @@ import requests
 pytestmark = pytest.mark.integration
 
 def test_payment_endpoint():
-    """Test payment processing."""
     response = requests.post(
         "http://localhost:8001/process",
         json={"amount": 100, "currency": "USD"}

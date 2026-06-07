@@ -1,0 +1,57 @@
+# Values for grafana/loki-stack (Loki + Promtail bundled).
+#
+# Sized for a single-node minikube lab, not production:
+# - small persistent volume (standard/hostpath storage class)
+# - short retention to keep disk usage low
+#
+# Install with:
+#   helm install loki grafana/loki-stack -n monitoring -f deploy/loki/values.yaml
+
+loki:
+  enabled: true
+  isDefault: false # we register the datasource ourselves via deploy/loki/grafana-datasource-loki.yaml
+
+  persistence:
+    enabled: true
+    storageClassName: standard
+    size: 5Gi
+
+  config:
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 168h # 7 days, matches Prometheus retention
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      max_entries_limit_per_query: 5000
+      # Defaults (4 MB/s, burst 6 MB) get hit immediately by Promtail's
+      # initial backlog of existing pod logs on first scrape; raise them
+      # so the lab doesn't drop logs while catching up.
+      ingestion_rate_mb: 16
+      ingestion_burst_size_mb: 32
+
+promtail:
+  enabled: true
+  config:
+    logLevel: info
+    serverPort: 3101
+    clients:
+      - url: http://{{ .Release.Name }}:3100/loki/api/v1/push
+
+# Grafana already runs as part of kube-prometheus-stack (release "prometheus");
+# don't deploy a second Grafana from this chart.
+grafana:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+fluent-bit:
+  enabled: false
+
+filebeat:
+  enabled: false
+
+logstash:
+  enabled: false

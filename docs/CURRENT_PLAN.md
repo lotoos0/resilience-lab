@@ -60,21 +60,16 @@ GitHub Issues rule:
 
 #### Tasks:
 
-1. **Loki + Promtail Deployment** (4h)
-   - [ ] Add Grafana Loki Helm repo
-   - [ ] Create `deploy/loki/values.yaml`:
-     ```yaml
-     loki:
-       persistence:
-         enabled: true
-         size: 10Gi
-       retention_days: 7
-     promtail:
-       enabled: true
-     ```
-   - [ ] Deploy: `helm install loki grafana/loki-stack -n monitoring -f deploy/loki/values.yaml`
-   - [ ] Add Loki datasource in Grafana (http://loki:3100)
-   - [ ] Test LogQL queries: `{app="api"}`, `{app="api"} |= "error"`
+1. **Loki + Promtail Deployment** (4h) — done, see issue `#38`
+   - [x] Add Grafana Loki Helm repo
+   - [x] Create `deploy/loki/values.yaml` (5Gi persistence, 7d retention, raised
+     ingestion rate limits to absorb Promtail's initial backlog)
+   - [x] Deploy: `helm install loki grafana/loki-stack -n monitoring -f deploy/loki/values.yaml`
+   - [x] Loki datasource in Grafana — auto-provisioned by the chart's sidecar
+     ConfigMap (`http://loki:3100`), no extra manifest needed
+   - [x] Test LogQL queries: `{app="api"}`, `{app="payments"}`, `{app="envoy-proxy"}`,
+     `{app="api"} |= "healthz"`, `| json | line_format`, `| logfmt`
+   - [x] Documented in `docs/observability.md` (Logging section + LogQL examples)
    - [ ] Commit: `feat(logging): deploy Loki stack for log aggregation`
 
 2. **Grafana Dashboard #2 - Resilience** (3h)
@@ -250,7 +245,7 @@ GitHub Issues rule:
    - [ ] Check all M3 DoD criteria:
      - [x] Rate limiting validated ✅
      - [x] Prometheus + Grafana ✅
-     - [ ] Loki + Promtail ⚠️ (doing now)
+     - [x] Loki + Promtail ✅ (issue #38)
      - [ ] Basic alerts ⚠️ (doing now)
      - [x] Load tests passing ✅
    - [ ] Update progress: M3 → 90%
@@ -642,7 +637,7 @@ GitHub Issues rule:
 ### M3 - Resilience + Observability
 - [ ] Rate limiting validated (k6 tests pass)
 - [ ] Prometheus + Grafana deployed
-- [ ] Loki + Promtail deployed
+- [x] Loki + Promtail deployed (issue #38)
 - [ ] OpenTelemetry tracing baseline implemented (stretch)
 - [ ] 2 Grafana dashboards operational
 - [ ] Basic alerts configured

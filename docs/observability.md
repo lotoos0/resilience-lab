@@ -14,10 +14,10 @@ Implemented:
 - Prometheus recording rules for API, Envoy, and basic availability metrics
 - Basic Prometheus alert rules for v0.1.0
 - Grafana system overview dashboard JSON
+- Loki + Promtail log aggregation with a Loki datasource in Grafana (issue `#38`)
 
 Planned in separate issues:
 
-- Loki + Promtail log aggregation: GitHub issue `#38`
 - OpenTelemetry tracing baseline: GitHub issue `#60`
 - Resilience dashboard panels: GitHub issues `#36`, `#37`, `#50`
 
@@ -26,6 +26,11 @@ Known limitations:
 - Payments does not expose `/metrics` yet.
 - Advanced multi-window burn-rate SLO alerting is deferred to the post-v0.1.0 backlog.
 - `docs/outputs/*` files are evidence snapshots, not live monitoring state.
+- Redis is not currently deployed in the cluster, so the rate-limit middleware fails on
+  every request (`redis.exceptions.ConnectionError`). This also means `rl_allowed_total`
+  / `rl_denied_total` metrics and the `rate_limit_check` log line never get emitted —
+  not a Loki/Promtail issue, but it limits what the tenant-context LogQL examples can
+  show until Redis is wired back into the Helm chart.
 
 ## Metrics Endpoints
 
@@ -61,6 +66,92 @@ Key metric areas:
 - retry counters
 - outlier detection counters
 - circuit breaker counters
+
+## Logging (Loki + Promtail)
+
+Logs from API, Payments, and Envoy are aggregated in Loki and browsable through
+the Grafana **Explore** view.
+
+Deployment:
+
+- Helm release `loki` (chart `grafana/loki-stack`) in the `monitoring` namespace, bundling
+  Loki and Promtail in a single release.
+- Values: `deploy/loki/values.yaml` (small persistent volume sized for a single-node
+  minikube lab, ~7 day retention to match Prometheus).
+- The chart auto-provisions a Grafana datasource named **Loki** (pointing at
+  `http://loki:3100`) via the same sidecar mechanism used for the Prometheus/Alertmanager
+  datasources — no extra manifest needed.
+
+Install/upgrade:
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm upgrade --install loki grafana/loki-stack -n monitoring -f deploy/loki/values.yaml
+```
+
+Check status:
+
+```bash
+helm status loki -n monitoring
+kubectl get pods -n monitoring -l release=loki
+kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail
+```
+
+### Labels
+
+Promtail's default Kubernetes pipeline derives labels from pod metadata, so logs are
+queryable per service via the `app` label (taken from `app.kubernetes.io/name`, falling
+back to the `app` pod label):
+
+- `{app="api"}` — Resilience Lab API
+- `{app="payments"}` — Payments service
+- `{app="envoy-proxy"}` — Envoy proxy
+
+Other useful labels: `namespace`, `pod`, `container`, `node_name`, `job`
+(`<namespace>/<app>`).
+
+### Example LogQL queries
+
+Service-level filtering:
+
+```logql
+{app="api"}
+{app="payments"}
+{app="envoy-proxy"}
+```
+
+Line filtering (substring match):
+
+```logql
+{app="api"} |= "healthz"
+{app="api"} |= "error"
+```
+
+Parsing JSON container log lines and reformatting to show just the application message:
+
+```logql
+{namespace="resilience-lab"} | json | line_format "{{.log}}"
+```
+
+Tenant/request context: the rate-limit middleware
+(`services/api/middleware/rate_limit.py`) logs a `logfmt`-style line per request —
+`rate_limit_check tenant=<tenant> path=<path> status=<allowed|denied> count=<n> limit=<n>` —
+so it can be parsed and filtered by tenant:
+
+```logql
+{app="api"} |= "rate_limit_check" | logfmt | tenant="acme"
+{app="api"} | logfmt | status="denied"
+```
+
+> Note: this log line is only emitted when the rate-limit middleware can reach Redis.
+> See "API `/metrics` fails because middleware cannot reach Redis" in Troubleshooting —
+> the same dependency gap currently prevents `rate_limit_check` lines from appearing.
+
+### Verification
+
+Open Grafana → **Explore**, select the **Loki** datasource, and run the queries above.
+Use the label browser to confirm `app`, `namespace`, and `container` values match the
+expected services.
 
 ## Prometheus Configuration
 

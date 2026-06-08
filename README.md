@@ -582,6 +582,49 @@ deploy/helm/
 - **12-Factor App**: Environment-based configuration
 - **Security**: Non-root containers, health checks
 
+### Rate Limiting
+
+The API service enforces a per-tenant request limit via
+`RateLimitMiddleware` (`services/api/middleware/rate_limit.py`), backed by
+a Redis sliding window:
+
+- **Header**: `X-Tenant` identifies the tenant (defaults to `"default"`
+  when missing)
+- **Limit**: 60 requests per 60-second sliding window, per tenant
+  (Redis sorted sets — centralized, so it works correctly across multiple
+  API replicas)
+- **Excluded paths**: `/healthz` and `/metrics` bypass the limiter so
+  health checks and Prometheus scrapes are never throttled
+- **Response on 429**:
+  ```json
+  {
+    "error": "rate_limit_exceeded",
+    "message": "Rate limit exceeded for tenant <tenant>",
+    "limit": "60 requests per 60s",
+    "tenant": "<tenant>"
+  }
+  ```
+- **Observability**: every request is recorded as `rl_allowed_total` /
+  `rl_denied_total` Prometheus counters (labelled by `tenant`) and as a
+  `rate_limit_check tenant=<tenant> path=<path> status=<allowed|denied>
+  count=<n> limit=<n>` logfmt line, queryable in Loki — see
+  [docs/observability.md](docs/observability.md)
+
+**Try it:**
+
+```bash
+# Stay under the limit
+for i in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code}\n" -H "X-Tenant: acme" http://localhost:8000/; done
+
+# Exceed it (60+ requests within 60s) -> expect HTTP 429
+for i in $(seq 1 80); do curl -s -o /dev/null -w "%{http_code}\n" -H "X-Tenant: acme" http://localhost:8000/; done
+```
+
+Load test validation: [`tests/load/rate-limit-test.js`](tests/load/rate-limit-test.js)
+and [`tests/load/rate-limit-test-simple.js`](tests/load/rate-limit-test-simple.js)
+(k6) — see [docs/M3_RESILIENCE_PATTERNS.md](docs/M3_RESILIENCE_PATTERNS.md#load-testing)
+for how to run them against a live deployment.
+
 ---
 
 ## 📊 M2 Progress: Networking & Health (✅ Envoy Policies Complete)

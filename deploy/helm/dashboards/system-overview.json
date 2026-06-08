@@ -337,7 +337,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(prometheus_http_requests_total[5m])) by (status)",
+          "expr": "sum(rate(http_requests_total{job=\"resilience-lab-api\"}[5m])) by (status)",
           "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"

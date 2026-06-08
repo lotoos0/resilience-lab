@@ -149,6 +149,29 @@ Open Grafana → **Explore**, select the **Loki** datasource, and run the querie
 Use the label browser to confirm `app`, `namespace`, and `container` values match the
 expected services.
 
+## Grafana Dashboards
+
+The "Resilience Lab 0 System Overview" dashboard (`uid: adnxcgd`) is provisioned
+as code, the same way `kube-prometheus-stack` loads its bundled dashboards and
+`loki` provisions its datasource:
+
+- Dashboard JSON lives in the chart at `deploy/helm/dashboards/system-overview.json`.
+- `deploy/helm/templates/grafana-dashboard-system-overview.yaml` wraps it in a
+  `ConfigMap` labeled `grafana_dashboard: "1"`.
+- The `grafana-sc-dashboard` sidecar (`k8s-sidecar`, watching all namespaces)
+  picks up the labeled ConfigMap and loads the dashboard into Grafana automatically
+  — no manual import needed.
+
+Verification:
+
+```bash
+kubectl get configmap -n resilience-lab -l grafana_dashboard=1
+curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/api/search
+```
+
+`/api/search` should list "Resilience Lab 0 System Overview" at
+`/d/adnxcgd/resilience-lab-0-system-overview`.
+
 ## Prometheus Configuration
 
 Prometheus-related manifests:

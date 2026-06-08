@@ -1152,7 +1152,7 @@ Current build status: [![CI](https://github.com/lotoos0/resilience-lab/actions/w
   - Unit tests with 90%+ coverage
   - k6 load test validation
 - [x] **Prometheus metrics** - ServiceMonitors for API and Envoy, recording rules
-- [x] **Grafana dashboard** - System overview (`deploy/grafana/dashboards/system-overview.json`)
+- [x] **Grafana dashboard** - System overview, auto-provisioned via ConfigMap + sidecar (`deploy/helm/dashboards/system-overview.json`)
 - [x] **Alert rules** - HighErrorRate, APIDown, PrometheusTargetDown
 - [x] **NetworkPolicy fixes** - Prometheus scrape paths to API and Envoy
 - [x] **Operational runbooks** - Prometheus scrape and observability target troubleshooting

@@ -26,11 +26,6 @@ Known limitations:
 - Payments does not expose `/metrics` yet.
 - Advanced multi-window burn-rate SLO alerting is deferred to the post-v0.1.0 backlog.
 - `docs/outputs/*` files are evidence snapshots, not live monitoring state.
-- Redis is not currently deployed in the cluster, so the rate-limit middleware fails on
-  every request (`redis.exceptions.ConnectionError`). This also means `rl_allowed_total`
-  / `rl_denied_total` metrics and the `rate_limit_check` log line never get emitted —
-  not a Loki/Promtail issue, but it limits what the tenant-context LogQL examples can
-  show until Redis is wired back into the Helm chart.
 
 ## Metrics Endpoints
 
@@ -139,13 +134,14 @@ Tenant/request context: the rate-limit middleware
 so it can be parsed and filtered by tenant:
 
 ```logql
-{app="api"} |= "rate_limit_check" | logfmt | tenant="acme"
-{app="api"} | logfmt | status="denied"
+{app="api"} |= "rate_limit_check" | json | line_format "{{.log}}" | logfmt | tenant="acme"
+{app="api"} | json | line_format "{{.log}}" | logfmt | status="denied"
 ```
 
-> Note: this log line is only emitted when the rate-limit middleware can reach Redis.
-> See "API `/metrics` fails because middleware cannot reach Redis" in Troubleshooting —
-> the same dependency gap currently prevents `rate_limit_check` lines from appearing.
+> Note: container log lines arrive at Loki wrapped in the container runtime's JSON
+> envelope (`{"log": "...", "stream": "...", "time": "..."}`), so `| logfmt` alone
+> won't see the `tenant=`/`status=` fields — unwrap with `| json | line_format
+> "{{.log}}"` first, as in the "Parsing JSON container log lines" example above.
 
 ### Verification
 
@@ -304,6 +300,5 @@ If the API target is down, start with:
 Common causes:
 
 - NetworkPolicy blocks Prometheus from scraping API or Envoy;
-- API `/metrics` fails because middleware cannot reach Redis;
 - ServiceMonitor selector does not match service labels;
 - Prometheus release label does not match the kube-prometheus-stack selector.

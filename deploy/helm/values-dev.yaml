@@ -27,7 +27,3 @@ postgresql:
   primary:
     persistence:
       size: 500Mi
-redis:
-  master:
-    persistence:
-      size: 256Mi

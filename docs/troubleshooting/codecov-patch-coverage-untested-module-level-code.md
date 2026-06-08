@@ -60,9 +60,9 @@ executes its module-level code, including the new `import logging` and
 
 `/healthz` and `/metrics` were chosen deliberately: they're in the rate-limit
 middleware's `excluded_paths`, so the tests don't need a live Redis connection
-(unlike `/` or `/pay`, which go through `RateLimitMiddleware.dispatch` and raise
-`redis.exceptions.ConnectionError` — see "Redis is not currently deployed" in
-`docs/observability.md`).
+(unlike `/` or `/pay`, which go through `RateLimitMiddleware.dispatch` and talk
+to Redis for the sliding-window counters — see `docs/observability.md` for the
+metrics/logging this middleware emits).
 
 ## How It Was Found
 

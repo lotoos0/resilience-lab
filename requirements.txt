@@ -18,7 +18,7 @@ requests==2.33.0
 
 # Monitoring
 prometheus-client==0.19.0
-prometheus-fastapi-instrumentator==7.*
+prometheus-fastapi-instrumentator==8.*
 
 # Testing
 pytest==9.0.3

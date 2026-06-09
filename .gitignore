@@ -261,3 +261,7 @@ scripts/test-mcp-servers.sh
 
 # Backup files from setup
 **/claude_desktop_config.json.backup.*
+
+# === TLS certificates (generate locally with: scripts/generate-certs.sh) ===
+deploy/traefik/certs/*.crt
+deploy/traefik/certs/*.key

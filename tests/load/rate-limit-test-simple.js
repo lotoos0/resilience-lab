@@ -1,6 +1,14 @@
 /**
  * K6 Load Test - Rate Limiting Validation (Simplified)
- * Uses /healthz endpoint to avoid Payments service dependency
+ * Uses /openapi.json (FastAPI's auto-generated schema) to avoid the
+ * Payments service dependency.
+ *
+ * `/healthz` is used only for the readiness check in setup(). Rate-limit
+ * validation targets `/openapi.json` because `/healthz` and `/metrics` are
+ * excluded from rate limiting (see RateLimitMiddleware.excluded_paths) and
+ * would never produce a 429 no matter the load. (The `/` root endpoint is
+ * avoided too — it currently returns 500 due to an unrelated
+ * ResponseValidationError bug.)
  */
 
 import http from 'k6/http';
@@ -52,7 +60,7 @@ const params = {
 };
 
 export function underLimit() {
-  const response = http.get(`${BASE_URL}/healthz`, params);
+  const response = http.get(`${BASE_URL}/openapi.json`, params);
 
   const success = check(response, {
     'status is 200': (r) => r.status === 200,
@@ -71,7 +79,7 @@ export function underLimit() {
 }
 
 export function overLimit() {
-  const response = http.get(`${BASE_URL}/healthz`, params);
+  const response = http.get(`${BASE_URL}/openapi.json`, params);
 
   check(response, {
     'status is 200 or 429': (r) => r.status === 200 || r.status === 429,
@@ -92,7 +100,7 @@ export function overLimit() {
 }
 
 export function setup() {
-  console.log('Testing rate limiting with /healthz endpoint');
+  console.log('Testing rate limiting with /openapi.json endpoint (/healthz and /metrics are excluded)');
   console.log(`Base URL: ${BASE_URL}`);
   console.log(`Tenant: ${TENANT_ID}`);
 

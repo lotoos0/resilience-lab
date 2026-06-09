@@ -4,6 +4,7 @@ Handles payment requests and communicates with Payments service.
 """
 
 import os
+import logging
 import redis
 from typing import Dict, Any
 from fastapi import FastAPI, HTTPException, status
@@ -11,6 +12,11 @@ from pydantic import BaseModel
 from services.api.middleware.rate_limit import RateLimitMiddleware
 import httpx
 from prometheus_fastapi_instrumentator import Instrumentator
+
+# Without this, application loggers (e.g. services.api.middleware.rate_limit)
+# propagate to the root logger, which has no handler under uvicorn and drops
+# everything below WARNING - so rate-limit context never reaches stdout/Loki.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
 app = FastAPI(title="Resilience Lab - API Service")
 

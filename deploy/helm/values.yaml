@@ -16,14 +16,23 @@ postgresql:
       enabled: true
       size: 1Gi
 # Redis configuration
+# Plain Deployment+Service (deploy/helm/templates/redis-*.yaml), not a Bitnami
+# subchart: the rate-limit middleware only needs an atomic shared store for
+# sliding-window counters (ephemeral by nature, TTL = 60s), so an emptyDir is
+# enough — no persistence/auth/replication required.
 redis:
   enabled: true
-  auth:
-    enabled: false
-  master:
-    persistence:
-      enabled: true
-      size: 512Mi
+  image:
+    repository: redis
+    tag: 7-alpine
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
 # API service configuration
 api:
   enabled: true

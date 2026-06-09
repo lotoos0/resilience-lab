@@ -53,16 +53,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Check rate limit
         allowed, current_count = await self._check_rate_limit(tenant_id)
 
-        # Log rate limit check
+        # Log rate limit check in logfmt (key=value) so Loki can filter/parse
+        # by tenant and request context, e.g. `{app="api"} | logfmt | tenant="acme"`
         logger.info(
-            "Rate limit check",
-            extra={
-                "tenant": tenant_id,
-                "path": request.url.path,
-                "current_count": current_count,
-                "limit": self.max_requests,
-                "status": "allowed" if allowed else "denied",
-            },
+            'rate_limit_check tenant=%s path=%s status=%s count=%d limit=%d',
+            tenant_id,
+            request.url.path,
+            "allowed" if allowed else "denied",
+            current_count,
+            self.max_requests,
         )
 
         if not allowed:

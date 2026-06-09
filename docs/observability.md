@@ -14,10 +14,10 @@ Implemented:
 - Prometheus recording rules for API, Envoy, and basic availability metrics
 - Basic Prometheus alert rules for v0.1.0
 - Grafana system overview dashboard JSON
+- Loki + Promtail log aggregation with a Loki datasource in Grafana (issue `#38`)
 
 Planned in separate issues:
 
-- Loki + Promtail log aggregation: GitHub issue `#38`
 - OpenTelemetry tracing baseline: GitHub issue `#60`
 - Resilience dashboard panels: GitHub issues `#36`, `#37`, `#50`
 
@@ -61,6 +61,116 @@ Key metric areas:
 - retry counters
 - outlier detection counters
 - circuit breaker counters
+
+## Logging (Loki + Promtail)
+
+Logs from API, Payments, and Envoy are aggregated in Loki and browsable through
+the Grafana **Explore** view.
+
+Deployment:
+
+- Helm release `loki` (chart `grafana/loki-stack`) in the `monitoring` namespace, bundling
+  Loki and Promtail in a single release.
+- Values: `deploy/loki/values.yaml` (small persistent volume sized for a single-node
+  minikube lab, ~7 day retention to match Prometheus).
+- The chart auto-provisions a Grafana datasource named **Loki** (pointing at
+  `http://loki:3100`) via the same sidecar mechanism used for the Prometheus/Alertmanager
+  datasources — no extra manifest needed.
+
+Install/upgrade:
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm upgrade --install loki grafana/loki-stack -n monitoring -f deploy/loki/values.yaml
+```
+
+Check status:
+
+```bash
+helm status loki -n monitoring
+kubectl get pods -n monitoring -l release=loki
+kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail
+```
+
+### Labels
+
+Promtail's default Kubernetes pipeline derives labels from pod metadata, so logs are
+queryable per service via the `app` label (taken from `app.kubernetes.io/name`, falling
+back to the `app` pod label):
+
+- `{app="api"}` — Resilience Lab API
+- `{app="payments"}` — Payments service
+- `{app="envoy-proxy"}` — Envoy proxy
+
+Other useful labels: `namespace`, `pod`, `container`, `node_name`, `job`
+(`<namespace>/<app>`).
+
+### Example LogQL queries
+
+Service-level filtering:
+
+```logql
+{app="api"}
+{app="payments"}
+{app="envoy-proxy"}
+```
+
+Line filtering (substring match):
+
+```logql
+{app="api"} |= "healthz"
+{app="api"} |= "error"
+```
+
+Parsing JSON container log lines and reformatting to show just the application message:
+
+```logql
+{namespace="resilience-lab"} | json | line_format "{{.log}}"
+```
+
+Tenant/request context: the rate-limit middleware
+(`services/api/middleware/rate_limit.py`) logs a `logfmt`-style line per request —
+`rate_limit_check tenant=<tenant> path=<path> status=<allowed|denied> count=<n> limit=<n>` —
+so it can be parsed and filtered by tenant:
+
+```logql
+{app="api"} |= "rate_limit_check" | json | line_format "{{.log}}" | logfmt | tenant="acme"
+{app="api"} | json | line_format "{{.log}}" | logfmt | status="denied"
+```
+
+> Note: container log lines arrive at Loki wrapped in the container runtime's JSON
+> envelope (`{"log": "...", "stream": "...", "time": "..."}`), so `| logfmt` alone
+> won't see the `tenant=`/`status=` fields — unwrap with `| json | line_format
+> "{{.log}}"` first, as in the "Parsing JSON container log lines" example above.
+
+### Verification
+
+Open Grafana → **Explore**, select the **Loki** datasource, and run the queries above.
+Use the label browser to confirm `app`, `namespace`, and `container` values match the
+expected services.
+
+## Grafana Dashboards
+
+The "Resilience Lab 0 System Overview" dashboard (`uid: adnxcgd`) is provisioned
+as code, the same way `kube-prometheus-stack` loads its bundled dashboards and
+`loki` provisions its datasource:
+
+- Dashboard JSON lives in the chart at `deploy/helm/dashboards/system-overview.json`.
+- `deploy/helm/templates/grafana-dashboard-system-overview.yaml` wraps it in a
+  `ConfigMap` labeled `grafana_dashboard: "1"`.
+- The `grafana-sc-dashboard` sidecar (`k8s-sidecar`, watching all namespaces)
+  picks up the labeled ConfigMap and loads the dashboard into Grafana automatically
+  — no manual import needed.
+
+Verification:
+
+```bash
+kubectl get configmap -n resilience-lab -l grafana_dashboard=1
+curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/api/search
+```
+
+`/api/search` should list "Resilience Lab 0 System Overview" at
+`/d/adnxcgd/resilience-lab-0-system-overview`.
 
 ## Prometheus Configuration
 
@@ -213,6 +323,5 @@ If the API target is down, start with:
 Common causes:
 
 - NetworkPolicy blocks Prometheus from scraping API or Envoy;
-- API `/metrics` fails because middleware cannot reach Redis;
 - ServiceMonitor selector does not match service labels;
 - Prometheus release label does not match the kube-prometheus-stack selector.

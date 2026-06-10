@@ -27,6 +27,14 @@ spec:
         - record: envoy:upstream_connections:current
           expr: envoy_cluster_upstream_cx_active
 
+        # Retry rate per cluster (resilience: how often Envoy is retrying upstream requests)
+        - record: envoy:retries:rate5m
+          expr: rate(envoy_cluster_upstream_rq_retry[5m])
+
+        # Outlier ejection rate per cluster (resilience: hosts being ejected from the pool)
+        - record: envoy:outlier_ejections:rate5m
+          expr: rate(envoy_cluster_outlier_detection_ejections_total[5m])
+
     # API metrics - will work when /metrics endpoint is available
     - name: api_metrics
       interval: 30s

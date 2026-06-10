@@ -172,6 +172,23 @@ curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/ap
 `/api/search` should list "Resilience Lab 0 System Overview" at
 `/d/adnxcgd/resilience-lab-0-system-overview`.
 
+### Resilience Lab – Traffic & Latency
+
+The "Resilience Lab – Traffic & Latency" dashboard (`uid: resilience-core`) is
+provisioned the same way, via `deploy/helm/dashboards/resilience.json` and
+`deploy/helm/templates/grafana-dashboard-resilience.yaml`. Panels:
+
+- HTTP Status Codes, RPS (1m), p95 Latency
+- Envoy Retries — rate 5m (`envoy:retries:rate5m`, by `envoy_cluster_name`)
+- Outlier Ejections — rate 5m (`envoy:outlier_ejections:rate5m`, by `envoy_cluster_name`)
+- Rate Limit Denials / 429 — rate 5m (`api:rate_limit_denied:rate5m`, by `tenant`)
+
+The retry/ejection/429 panels read from the recording rules above rather than
+the raw `*_total` counters, so they show smoothed per-second rates instead of
+ever-growing totals.
+
+![Resilience Lab – Traffic & Latency dashboard](img/resilience-dashboard.png)
+
 ## Prometheus Configuration
 
 Prometheus-related manifests:
@@ -196,6 +213,8 @@ The project currently defines recording rules for:
 - Envoy 5xx error rate
 - Envoy p95 upstream request duration
 - Envoy active upstream connections
+- Envoy retry rate (`envoy:retries:rate5m`)
+- Envoy outlier ejection rate (`envoy:outlier_ejections:rate5m`)
 - API request rate
 - API 5xx error rate
 - Rate-limit allowed/denied request rates

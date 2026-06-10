@@ -3,6 +3,9 @@
 
 FROM python:3.11-slim
 
+# Security: patch OS packages to pick up fixes for newly disclosed CVEs (e.g. openssl/libssl3t64)
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 # Security: Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 

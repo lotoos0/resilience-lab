@@ -182,10 +182,11 @@ provisioned the same way, via `deploy/helm/dashboards/resilience.json` and
 - Envoy Retries — rate 5m (`envoy:retries:rate5m`, by `envoy_cluster_name`)
 - Outlier Ejections — rate 5m (`envoy:outlier_ejections:rate5m`, by `envoy_cluster_name`)
 - Rate Limit Denials / 429 — rate 5m (`api:rate_limit_denied:rate5m`, by `tenant`)
+- Envoy Bulkhead Overflow — rate 5m (`envoy:bulkhead_overflow:rate5m`, by `envoy_cluster_name`)
 
-The retry/ejection/429 panels read from the recording rules above rather than
-the raw `*_total` counters, so they show smoothed per-second rates instead of
-ever-growing totals.
+The retry/ejection/429/bulkhead panels read from the recording rules above
+rather than the raw `*_total` counters, so they show smoothed per-second
+rates instead of ever-growing totals.
 
 ![Resilience Lab – Traffic & Latency dashboard](img/resilience-dashboard.png)
 
@@ -215,6 +216,7 @@ The project currently defines recording rules for:
 - Envoy active upstream connections
 - Envoy retry rate (`envoy:retries:rate5m`)
 - Envoy outlier ejection rate (`envoy:outlier_ejections:rate5m`)
+- Envoy bulkhead overflow rate (`envoy:bulkhead_overflow:rate5m`)
 - API request rate
 - API 5xx error rate
 - Rate-limit allowed/denied request rates

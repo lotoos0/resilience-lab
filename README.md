@@ -136,7 +136,7 @@ M0–M2 done (bootstrap, CI/CD, Helm, networking layer, resilience primitives). 
 - ✅ Grafana: System Overview + Traffic & Latency dashboards
 - ✅ Loki + Promtail log aggregation, LogQL in Grafana Explore
 - ✅ Grafana resilience dashboard: traffic, latency, retries, outlier
-  ejections, and rate-limit denials
+  ejections, rate-limit denials, and bulkhead overflow
 
 Up next — **M4:** security audit, chaos scenarios, and the next stable release.
 

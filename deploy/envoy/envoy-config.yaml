@@ -83,9 +83,9 @@ data:
           circuit_breakers:
             thresholds:
               - priority: DEFAULT
-                max_connections: 100
-                max_pending_requests: 50
-                max_requests: 100
+                max_connections: 5
+                max_pending_requests: 5
+                max_requests: 10
                 max_retries: 3
           load_assignment:
             cluster_name: api_service
@@ -129,9 +129,9 @@ data:
           circuit_breakers:
             thresholds:
               - priority: DEFAULT
-                max_connections: 100
-                max_pending_requests: 50
-                max_requests: 100
+                max_connections: 5
+                max_pending_requests: 5
+                max_requests: 10
                 max_retries: 3
           load_assignment:
             cluster_name: payments_service

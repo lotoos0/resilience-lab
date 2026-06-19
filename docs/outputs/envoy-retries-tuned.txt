@@ -1,95 +1,102 @@
-## Retry & timeout tuning — validation plan
-## Config: num_retries=2, per_try_timeout=200ms, route timeout=2s
-## backoff: base_interval=25ms, max_interval=250ms (jittered exponential)
-## Date: 2026-06-19
+# Envoy retry timeout tuning validation
 
----
+## 1. Active Envoy config
 
-## 1. Retry attempts observed
+21:                  idle_timeout: 60s
+23:                request_timeout: 10s
+24:                stream_idle_timeout: 300s
+36:                            timeout: 2s
+37:                            idle_timeout: 60s
+45:                              per_try_timeout: 0.2s
+46:                              retry_back_off:
+47:                                base_interval: 0.025s
+48:                                max_interval: 0.25s
+54:                            timeout: 2s
+55:                            idle_timeout: 60s
+63:                              per_try_timeout: 0.2s
+64:                              retry_back_off:
+65:                                base_interval: 0.025s
+66:                                max_interval: 0.25s
+81:      connect_timeout: 0.5s
+99:        - timeout: 1s
+106:        idle_timeout: 60s
+127:      connect_timeout: 0.5s
+145:        - timeout: 1s
+152:        idle_timeout: 60s
 
-Tool: kubectl exec from api pod → curl to Envoy ClusterIP
+## 2. Healthy baseline
 
-Scenario A — FAIL_MODE=1 (payments returns 500 on every attempt):
-  Goal: confirm Envoy attempts num_retries=2 additional tries before giving up.
-  Expected Envoy stats after N requests:
-    cluster.payments_service.upstream_rq_retry: N * 2   (2 retries per request)
-    cluster.payments_service.upstream_rq_retry_success: 0  (all fail, FAIL_MODE)
-  Command to capture:
-    curl -s localhost:9901/stats | grep -E "upstream_rq_retry"
+status=201 time=0.004691s
 
-[FILL IN after running test]
+## 3. FAIL_MODE retry exhaustion
 
----
+Payments fault mode:
+LOG_LEVEL=DEBUG
+DATABASE_URL=postgresql://resilience:resilience@postgresql:5432/resilience_db
+REDIS_URL=redis://redis:6379
+SLOW_MODE=0
+FAIL_MODE=1
 
-## 2. Final client status
+Client-facing responses through Envoy:
+request=1 status=500 time=0.508431s
+request=2 status=500 time=0.034891s
+request=3 status=500 time=0.059036s
+request=4 status=500 time=0.052167s
+request=5 status=500 time=0.056328s
+request=6 status=500 time=0.036320s
+request=7 status=500 time=0.047745s
+request=8 status=500 time=0.057320s
+request=9 status=500 time=0.047191s
+request=10 status=500 time=0.042018s
 
-Scenario A — FAIL_MODE=1:
-  All 3 attempts (1 original + 2 retries) return 500.
-  Envoy exhausts retry budget → client receives 503 (upstream_rq_retry_overflow)
-  or 500 depending on retry_on policy.
-  Expected: client sees final 5xx, NOT a success.
+Note: FAIL_MODE=1 returns 500 on every payments attempt, so this validates retry exhaustion, not successful recovery.
 
-Scenario B — SLOW_MODE=1 (payments sleep 2s > per_try_timeout 200ms):
-  Each attempt times out at 200ms → Envoy retries up to 2 times.
-  Total budget: route timeout=2s.
-  With 3 attempts × 200ms per_try + 2 × backoff (~25-250ms) ≈ 650ms–1.1s.
-  Expected: client receives 504 (deadline exceeded) within route timeout=2s.
+## 4. SLOW_MODE timeout behavior
 
-[FILL IN actual HTTP status codes after test]
+Payments fault mode:
+LOG_LEVEL=DEBUG
+DATABASE_URL=postgresql://resilience:resilience@postgresql:5432/resilience_db
+REDIS_URL=redis://redis:6379
+SLOW_MODE=1
+FAIL_MODE=0
 
----
+Client-facing responses through Envoy:
+request=1 status=504 time=0.653511s
+request=2 status=504 time=0.666452s
+request=3 status=504 time=0.619401s
+request=4 status=504 time=0.620264s
+request=5 status=504 time=0.648179s
+request=6 status=504 time=0.610776s
+request=7 status=504 time=0.646291s
+request=8 status=504 time=0.643414s
+request=9 status=504 time=0.622247s
+request=10 status=504 time=0.613582s
 
-## 3. Latency before / after
+Note: SLOW_MODE=1 makes payments sleep for 2s. With per_try_timeout=0.2s and route timeout=2s, Envoy should fail faster than the previous 2s per-try behavior.
 
-Config change: per_try_timeout 2s → 200ms, route timeout 10s → 2s
+## 5. Final cleanup and health check
 
-Before (SLOW_MODE, old config):
-  - 1 original attempt: times out at 2s
-  - 2 retries: 2s each
-  - Total worst-case client latency: up to 6s (+ backoff if configured)
-  - With old 10s route timeout: client waits up to ~6s for a 504
+Payments fault mode after cleanup:
+LOG_LEVEL=DEBUG
+DATABASE_URL=postgresql://resilience:resilience@postgresql:5432/resilience_db
+REDIS_URL=redis://redis:6379
+SLOW_MODE=0
+FAIL_MODE=0
 
-After (SLOW_MODE, new config):
-  - 1 original attempt: times out at 200ms
-  - 2 retries: 200ms each
-  - Total worst-case: ~600ms + jittered backoff (~50-500ms) ≤ 2s route timeout
-  - Client receives 504 within 2s instead of waiting up to 6-10s
+Pod status:
+NAME                                       READY   STATUS    RESTARTS     AGE
+envoy-proxy-64b846d54f-lzsh7               1/1     Running   0            14m
+redis-84bbc776-c9mxr                       1/1     Running   5 (9h ago)   11d
+resilience-lab-api-b4598b7ff-bjmfl         1/1     Running   1 (9h ago)   11h
+resilience-lab-api-b4598b7ff-s68p4         1/1     Running   6 (9h ago)   8d
+resilience-lab-payments-7747bf6cbc-rpw6n   1/1     Running   0            63s
 
-[FILL IN actual measured latency with `time curl ...`]
+Final healthy request through Envoy:
+status=201 time=0.004498s
 
----
-
-## 4. 5xx behavior
-
-FAIL_MODE=1 validates that Envoy does not hide persistent failures:
-  - Retries are attempted (stat: upstream_rq_retry increments)
-  - All attempts fail (stat: upstream_rq_retry_success stays 0)
-  - Retry budget exhausted → client receives final error response
-  - This is correct: retries are for transient faults, not persistent ones.
-  - No false impression that retries "reduce" 5xx when the upstream is fully down.
-
-SLOW_MODE=1 produces 504 (timeout), not 5xx from upstream:
-  - upstream_rq_timeout increments per timed-out attempt
-  - retry_on includes implicit timeout behavior (reset/connect-failure)
-
-[FILL IN actual upstream_rq_retry and upstream_rq_retry_success counts]
-
----
-
-## 5. No retry storm evidence
-
-Envoy's retry_back_off uses jittered exponential backoff:
-  - base_interval=25ms sets the starting delay.
-  - Actual delay per attempt is randomized in the range [0, base * 2^attempt],
-    capped at max_interval=250ms. This spreads retry waves across time.
-  - max_retries=3 in circuit_breakers caps concurrent retrying requests
-    cluster-wide, regardless of how many clients are retrying simultaneously.
-
-Evidence: check that under load (e.g. 20 concurrent FAIL_MODE requests),
-  upstream_rq_retry_overflow stays 0 (retry budget not exceeded globally)
-  OR increments predictably rather than unboundedly.
-
-Command:
-  curl -s localhost:9901/stats | grep -E "upstream_rq_retry"
-
-[FILL IN stats snapshot during concurrent load test]
+Summary:
+- Envoy config is active with per_try_timeout=0.2s and retry_back_off configured.
+- Healthy baseline returns 201.
+- FAIL_MODE validates retry exhaustion because payments returns 500 on every attempt.
+- SLOW_MODE validates faster timeout behavior: 2s backend sleep returns client-facing 504 in ~0.6s.
+- Fault modes were reset to FAIL_MODE=0 and SLOW_MODE=0 after testing.

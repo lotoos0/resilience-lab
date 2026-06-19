@@ -49,10 +49,10 @@ data:
                                 retry_policy:
                                   retry_on: "5xx,reset,connect-failure,refused-stream"
                                   num_retries: 2
-                                  per_try_timeout: 200ms
+                                  per_try_timeout: 0.2s
                                   retry_back_off:
-                                    base_interval: 25ms
-                                    max_interval: 250ms
+                                    base_interval: 0.025s
+                                    max_interval: 0.25s
                             # Payments routes
                             - match:
                                 prefix: "/payments"
@@ -67,10 +67,10 @@ data:
                                 retry_policy:
                                   retry_on: "5xx,reset,connect-failure,refused-stream"
                                   num_retries: 2
-                                  per_try_timeout: 200ms
+                                  per_try_timeout: 0.2s
                                   retry_back_off:
-                                    base_interval: 25ms
-                                    max_interval: 250ms
+                                    base_interval: 0.025s
+                                    max_interval: 0.25s
                             # Health check route
                             - match:
                                 prefix: "/healthz"

@@ -40,3 +40,6 @@ readinessProbe:
   periodSeconds: 5
   timeoutSeconds: 3
   successThreshold: 1
+chaosMode:
+  netAdmin: false   # Add NET_ADMIN capability. Enable only during chaos experiments.
+  runAsRoot: false  # Switch to runAsUser: 0. Enable only if tc fails with permission errors at Stage 1.

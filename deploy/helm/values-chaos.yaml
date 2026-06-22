@@ -1,0 +1,17 @@
+# Chaos mode overrides — ONLY for active resilience experiments.
+# Never apply in CI, staging, or production.
+#
+# Stage 1 (this file as-is): NET_ADMIN added, runAsUser remains 1000.
+#   Run ./scripts/fault-inject.sh latency and check for capability errors.
+#   If tc qdisc show dev eth0 returns "netem delay 300ms" — Stage 1 succeeded.
+#
+# Stage 2 (only if tc fails with "Operation not permitted"): also set:
+#   payments.chaosMode.runAsRoot: true
+#   Re-run helm upgrade and retry.
+#
+# Cleanup (restores secure baseline):
+#   helm upgrade resilience-lab deploy/helm -n resilience-lab -f deploy/helm/values-dev.yaml
+payments:
+  chaosMode:
+    netAdmin: true
+    runAsRoot: true  # Stage 2: tc fails with uid 1000 + NET_ADMIN alone (confirmed on this cluster)

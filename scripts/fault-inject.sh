@@ -32,16 +32,26 @@ inject_latency() {
   echo "🔥 Injecting 300ms latency to payments pods..."
   PODS=$(kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=payments -o name)
 
+  if [ -z "$PODS" ]; then
+    echo "ERROR: No payments pods found in namespace $NAMESPACE" >&2
+    exit 1
+  fi
+
   for POD in $PODS; do
     echo "  → $POD"
-    kubectl exec -n "$NAMESPACE" "$POD" -- \
-      sh -c 'apt-get update -qq && apt-get install -y -qq iproute2 > /dev/null 2>&1' || true
+
+    if ! kubectl exec -n "$NAMESPACE" "$POD" -- which tc > /dev/null 2>&1; then
+      echo "ERROR: 'tc' not found in $POD." >&2
+      echo "  Fix: rebuild the payments image with iproute2 and redeploy." >&2
+      exit 1
+    fi
+
     kubectl exec -n "$NAMESPACE" "$POD" -- \
       tc qdisc add dev eth0 root netem delay 300ms
   done
 
-  echo "✅ Latency injected. Monitor outlier ejection:"
-  echo "   curl http://localhost:9901/stats | grep outlier"
+  echo "✅ Latency injected. Verify with:"
+  echo "   kubectl exec -n $NAMESPACE <pod> -- tc qdisc show dev eth0"
 }
 
 inject_failure() {
@@ -92,6 +102,16 @@ cleanup() {
     echo "  → Cleaning $POD"
     kubectl exec -n "$NAMESPACE" "$POD" -- \
       tc qdisc del dev eth0 root 2>/dev/null || true
+
+    REMAINING=$(kubectl exec -n "$NAMESPACE" "$POD" -- \
+      tc qdisc show dev eth0 2>/dev/null \
+      | grep -v -E 'noqueue|pfifo_fast|noop' || true)
+    if [ -n "$REMAINING" ]; then
+      echo "  ⚠️  WARNING: non-default tc qdisc still present on $POD:"
+      echo "  $REMAINING"
+    else
+      echo "  ✅ tc qdisc clean on $POD"
+    fi
   done
 
   echo "✅ Cleanup complete."

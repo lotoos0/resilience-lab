@@ -16,7 +16,6 @@ to contribute: welcome, and thanks for taking the time.
 - [Coding Standards](#coding-standards)
 - [Testing](#testing)
 - [Development Setup](#development-setup)
-- [Milestone Overview](#milestone-overview)
 - [Release Flow](#release-flow)
 
 ---
@@ -48,7 +47,7 @@ If it fits a milestone, mention which one.
 
 1. Branch from `develop`, not `main`
 2. Run `make lint` and `make test-unit` — CI will reject failures
-3. If it's a non-trivial change, open an issue first so we can discuss scope
+3. If it's a non-trivial change, open an issue first to define the scope
 4. Update docs if your change affects behavior, deployment, or observability
 
 ### PR workflow
@@ -63,7 +62,7 @@ git push origin issue-<number>-<short-description>
 
 Open the PR against `develop`. Link the issue with `closes #N` in the description.
 
-### Self-merge is fine if
+### Maintainer self-merge is fine when
 
 - CI is green (lint + unit + integration + build)
 - You tested the change locally
@@ -179,7 +178,7 @@ the code probably needs to be clearer.
 
 - Minimum: 80%
 - Target: 90%
-- Critical paths (auth, payments, rate limiting): 100%
+- Critical paths (payments, rate limiting): 100%
 
 ### Test types
 
@@ -230,18 +229,6 @@ make test      # verify everything works
 For Kubernetes setup and Helm deployment: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 For project structure and coding conventions: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
----
-
-## Milestone Overview
-
-| Milestone | Focus | Status |
-|-----------|-------|--------|
-| M0 — Bootstrap | Repo, API + Payments, Compose, CI skeleton | Done |
-| M1 — Core + CI/CD | Helm, atomic CI/CD, security baseline | Done |
-| M2 — Networking & Health | Traefik, Envoy, HPA, PDB, NetworkPolicy | Done |
-| M3 — Resilience + Observability | Rate-limit, bulkhead, Prometheus, Grafana, Loki, chaos tests | Done |
-| Release | Release notes, CHANGELOG, tag v0.1.0 | In progress |
 
 ---
 

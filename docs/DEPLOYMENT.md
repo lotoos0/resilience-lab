@@ -29,9 +29,10 @@ There are two ways to run Resilience Lab, and they serve different purposes:
 | **Docker Compose** | `make dev` | API, Payments, PostgreSQL, Redis | Fast iteration on service code |
 | **Kubernetes (minikube)** | `make helm-up-dev` | API, Payments, Redis, HPAs/PDBs/NetworkPolicies, Grafana dashboard ConfigMaps | Integration tests, chaos work, observability |
 
-The rule: if you're touching service logic, Compose is enough. If you're running
-chaos tests or validating observability, you need Kubernetes. `make dev` won't
-give you Envoy retry metrics — that's not a bug, it's a deliberate split.
+My rule: if you're touching service logic, Compose is enough. If you're running
+chaos tests or validating observability, you need Kubernetes. I designed it this
+way on purpose — `make dev` won't give you Envoy retry metrics, and that's not a
+bug I forgot to fix, it's a boundary I drew so Compose stays fast and boring.
 
 ---
 
@@ -110,8 +111,9 @@ make restart     # make down && make dev
 Docker Compose starts a PostgreSQL container and the services receive a
 `DATABASE_URL` env var. However, v0.1.0 service code does not open a PostgreSQL
 connection: Payments uses in-memory storage, and API does not use a database
-client at all. The container is there as infrastructure groundwork and to keep
-local service configuration close to the Kubernetes env vars. See [ADR-004 in
+client at all. I left the container running anyway — it's groundwork for the
+migration I haven't done yet, and it keeps the local env vars honest with what
+Kubernetes already expects. See [ADR-004 in
 ARCHITECTURE.md](ARCHITECTURE.md#adr-004-in-memory-storage-in-v010).
 
 ---
@@ -198,10 +200,10 @@ kubectl create secret tls resilience-lab-tls \
 kubectl apply -f deploy/envoy/
 ```
 
-Envoy is not part of the Helm chart today. The chart prepares some Envoy-facing
-policy/PDB objects, but the actual Envoy ConfigMap, Deployment, and Service live
-under `deploy/envoy/`. Yes, that split is a little spicy; at least now the docs
-admit it out loud.
+Envoy is not part of the Helm chart today — I haven't folded it in yet. The chart
+prepares some Envoy-facing policy/PDB objects, but the actual Envoy ConfigMap,
+Deployment, and Service live under `deploy/envoy/`. Yes, that split is a little
+spicy; I'm admitting it out loud here instead of pretending it's a design.
 
 ### What Helm Deploys
 
@@ -221,12 +223,14 @@ Bitnami subchart involved.
 
 The render also includes 4 Helm test Pods. Three are simple health checks. One
 legacy integration test still calls `/api/payments/test`; the current API exposes
-`/pay`, so treat that test as chart debt until it is aligned. Documentation
-should not sell you a unicorn with a broken curl command.
+`/pay`. I never went back to fix it — the curl call is commented out so it
+can't fail your `helm test` run, but it's dead weight I'm leaving here labeled
+as such rather than pretending the chart is cleaner than it is.
 
 No PostgreSQL or Envoy Deployment is rendered by the Helm chart today.
-`DATABASE_URL` is still present in service env vars as future groundwork, but
-v0.1.0 service code does not depend on a live Kubernetes PostgreSQL pod.
+`DATABASE_URL` is still present in service env vars as future groundwork — I'm
+keeping the wiring in place for whenever I actually build the persistence
+layer, but v0.1.0 service code does not depend on a live Kubernetes PostgreSQL pod.
 
 **Dev overrides** (`values-dev.yaml`):
 - `api.replicaCount: 1` in the Deployment template, but the API HPA has `minReplicas: 2`; once HPA reconciles, expect 2 API pods
@@ -305,10 +309,10 @@ make helm-down
 kubectl delete -f deploy/envoy/
 ```
 
-The rollout restart is intentional when you reuse the same local tag. Kubernetes
-doesn't restart pods just because a same-named image was rebuilt inside minikube;
-it needs a changed pod template or an explicit nudge. Computers, sadly, do not
-smell fresh Docker layers.
+I add the rollout restart on purpose, every time, because reusing the same local
+tag means Kubernetes has no idea anything changed. It doesn't restart pods just
+because I rebuilt an image inside minikube — it needs a changed pod template or
+an explicit nudge from me. Computers, sadly, do not smell fresh Docker layers.
 
 ### Observability Stack
 
@@ -363,13 +367,15 @@ Tags:
 - `<version>` (e.g. `v0.1.0`) — every `v*` tag push
 - `latest` — always updated alongside the SHA/version tag
 
-If GHCR packages are public, pull images without authentication:
+I publish these as public packages on purpose, so anyone cloning the repo can
+pull without a token:
 
 ```fish
 docker pull ghcr.io/lotoos0/resilience-lab-api:latest
 ```
 
-If the package visibility changes, authenticate first with `docker login ghcr.io`.
+If I ever flip that visibility, you'd need to authenticate first with
+`docker login ghcr.io`.
 
 ---
 
@@ -406,10 +412,10 @@ future integration-level unit tests, not because anything currently requires
 a live connection.
 
 **Why integration tests are separate**: They need Docker Compose, which means
-building images. Keeping them in a separate job lets `lint` and `test` fail fast
-without waiting for Docker. The current CI wait loop checks for any `healthy`
-container and then sleeps 10s; it is a pragmatic smoke gate, not a perfect
-"all services are healthy" oracle. Tiny CI fortune cookie, basically.
+building images. I keep them in their own job so `lint` and `test` can fail fast
+without waiting for Docker. The wait loop I wrote checks for any `healthy`
+container and then sleeps 10s — it's a pragmatic smoke gate I'm comfortable with,
+not a perfect "all services are healthy" oracle. Tiny CI fortune cookie, basically.
 
 ### CD (`cd.yml`) — push to `main`/`develop`, or `v*` tag
 
@@ -463,8 +469,9 @@ kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 ```
 
 `values-chaos.yaml` currently enables both `NET_ADMIN` and `runAsRoot: true` for
-Payments because this cluster needed root for `tc netem` to behave. It is for
-active experiments only; restore `values-dev.yaml` afterwards.
+Payments — `NET_ADMIN` alone wasn't enough on my cluster, `tc netem` still
+refused to behave at uid 1000, so I dropped to root for chaos runs only. It's
+for active experiments, not a baseline; restore `values-dev.yaml` afterwards.
 
 ### FAIL_MODE and SLOW_MODE
 

@@ -162,13 +162,25 @@ into `deploy/traefik/certs/`. These are gitignored — don't commit them. This
 script only creates files; it does not create the Kubernetes TLS Secret or apply
 `deploy/traefik/ingressroute.yaml`.
 
+After the `resilience-lab` namespace exists, wire those files into Kubernetes:
+
+```fish
+kubectl create secret tls resilience-lab-tls \
+  -n resilience-lab \
+  --cert=deploy/traefik/certs/tls.crt \
+  --key=deploy/traefik/certs/tls.key \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
 **Step 4** — install the Helm chart:
 
 ```fish
-make helm-deps; make helm-up-dev
+make helm-up-dev
 ```
 
-`helm-deps` resolves the two subcharts (`api`, `payments`) before install.
+`helm-up-dev` depends on `helm-deps`, so it resolves the two subcharts (`api`,
+`payments`) before install. Running `make helm-deps` manually first is fine, but
+it is belt-and-suspenders territory; useful only if your belt enjoys paperwork.
 `helm-up-dev` runs:
 
 ```
@@ -215,7 +227,7 @@ No PostgreSQL or Envoy Deployment is rendered by the Helm chart today.
 v0.1.0 service code does not depend on a live Kubernetes PostgreSQL pod.
 
 **Dev overrides** (`values-dev.yaml`):
-- `api.replicaCount: 1` (saves minikube resources)
+- `api.replicaCount: 1` in the Deployment template, but the API HPA has `minReplicas: 2`; once HPA reconciles, expect 2 API pods
 - `payments.replicaCount: 1`
 - API pinned to GHCR tag `8b86f3d`; Payments uses local tag `resilience-lab-payments:local`
 - `LOG_LEVEL: DEBUG`
@@ -261,8 +273,15 @@ HTTP status code — useful for watching the system recover in real time.
 ### Day-to-Day Helm Operations
 
 ```fish
-# Upgrade after code change (rebuild image first)
+# Upgrade after a Payments code change (rebuild resilience-lab-payments:local first)
 make helm-up-dev
+
+# Upgrade after a local API code change (rebuild api:local first)
+helm upgrade --install resilience-lab deploy/helm/ \
+  --values deploy/helm/values-dev.yaml \
+  --namespace resilience-lab \
+  --set api.image.repository=api \
+  --set api.image.tag=local
 
 # Rollback to previous revision
 make rollback-1
@@ -273,18 +292,22 @@ make rollback-2
 # Check release history
 helm history resilience-lab -n resilience-lab
 
-# Tear everything down
+# Tear down the Helm release only
 make helm-down
+
+# Tear down the separately applied Envoy manifests too
+kubectl delete -f deploy/envoy/
 ```
 
 ### Observability Stack
 
-Prometheus, Grafana, and Loki are not in the main Helm chart — they're deployed
-separately via their own Helm charts (kube-prometheus-stack, Loki stack). See
+Prometheus/Grafana and Loki are not in the main Helm chart — they're deployed
+separately via kube-prometheus-stack and grafana/loki-stack. See
 [docs/observability.md](observability.md) for the full setup walkthrough.
 
-ServiceMonitors at `deploy/prometheus/servicemonitor-*.yaml` connect Prometheus
-to the API, Payments, and Envoy admin endpoints once the stack is up.
+ServiceMonitor manifests at `deploy/prometheus/servicemonitor-*.yaml` connect
+Prometheus to the API, Payments, and Envoy admin endpoints once the monitoring
+stack is up and those manifests have been applied.
 
 ---
 
@@ -329,11 +352,13 @@ Tags:
 - `<version>` (e.g. `v0.1.0`) — every `v*` tag push
 - `latest` — always updated alongside the SHA/version tag
 
-Pull images without authentication (packages are public):
+If GHCR packages are public, pull images without authentication:
 
 ```fish
 docker pull ghcr.io/lotoos0/resilience-lab-api:latest
 ```
+
+If the package visibility changes, authenticate first with `docker login ghcr.io`.
 
 ---
 
@@ -360,7 +385,7 @@ trivy-fs (independent, runs in parallel)
 | `lint` | `ruff check services/` |
 | `trivy-fs` | Trivy filesystem scan (CRITICAL + HIGH), results to GitHub Security tab |
 | `test` | Unit tests (`pytest -m "not integration"`) with postgres:16 + redis:7-alpine sidecar containers (mocked by tests), coverage → Codecov |
-| `integration-test` | Spins up full Docker Compose stack, waits for healthy, runs `pytest -m integration`, tears down |
+| `integration-test` | Spins up the Docker Compose stack, does a shallow health wait plus a 10s settle, runs `pytest -m integration`, tears down |
 | `build` | Builds both images, runs Trivy image scan (exit-code 1 on CRITICAL/HIGH unfixed CVEs) |
 
 **Note on CI service containers**: The test job spins up postgres:16 and
@@ -370,8 +395,10 @@ future integration-level unit tests, not because anything currently requires
 a live connection.
 
 **Why integration tests are separate**: They need Docker Compose, which means
-building images, which takes 2–3 minutes. Keeping them in a separate job lets
-`lint` and `test` fail fast without waiting for Docker.
+building images. Keeping them in a separate job lets `lint` and `test` fail fast
+without waiting for Docker. The current CI wait loop checks for any `healthy`
+container and then sleeps 10s; it is a pragmatic smoke gate, not a perfect
+"all services are healthy" oracle. Tiny CI fortune cookie, basically.
 
 ### CD (`cd.yml`) — push to `main`/`develop`, or `v*` tag
 

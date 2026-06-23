@@ -33,7 +33,7 @@ crashes interesting. Everything described in this document is **deployed and tes
 in v0.1.0 — not "planned" or "future". If something is still pending, it's labeled
 explicitly.
 
-The short version of why we made the choices we did: we started as a flat Docker Compose
+The short version of why I made the choices I did: I started as a flat Docker Compose
 experiment, realized microservices add just enough distributed-systems pain to be
 educational, and kept layering real patterns on top until it became something worth
 showing.
@@ -122,7 +122,7 @@ On `TimeoutException` → `HTTP 504`. On other `HTTPError` → `HTTP 503`.
 ### Payments Service
 
 **Why it exists**: Isolated payment domain. Separate process, separate port,
-independently deployable. Also: the service we deliberately break in chaos tests.
+independently deployable. Also: the service I deliberately break in chaos tests.
 
 **Tech**: Python 3.11, FastAPI, Uvicorn — port `8001`.
 
@@ -144,7 +144,7 @@ independently deployable. Also: the service we deliberately break in chaos tests
 - `FAIL_MODE=1` → returns `HTTP 500` on every `/process` call
 - `SLOW_MODE=1` → sleeps `2s` before responding (simulates latency spike)
 
-These two flags are how we exercise Envoy's retry and circuit breaker from a known,
+These two flags are how I exercise Envoy's retry and circuit breaker from a known,
 repeatable starting point. See [chaos runbooks](RUNBOOKS.md).
 
 **Storage**: Currently in-memory (`dict`). Data does not survive restarts. This is
@@ -174,7 +174,7 @@ and emitting the detailed metrics that make chaos tests observable.
 | `max_interval` | `250ms` | Cap on jitter to avoid thundering-herd |
 
 The 200ms per-try timeout is deliberate: SLOW_MODE injects a 2s delay, which blows
-past it immediately. That's the point — we want to *see* retries fire under controlled
+past it immediately. That's the point — I want to *see* retries fire under controlled
 conditions, not watch the system silently hang.
 
 **Circuit breaker** (bulkhead limits per cluster):
@@ -186,7 +186,7 @@ conditions, not watch the system silently hang.
 | `max_requests` | 10 |
 
 These low numbers are intentional. This is a single-node minikube environment.
-We want the breaker to trip under moderate load so we can observe it — not set limits
+I want the breaker to trip under moderate load so I can observe it — not set limits
 that only matter at scale.
 
 **Outlier detection** (passive health checking):
@@ -223,7 +223,7 @@ Default posture: **deny all ingress**. Everything is whitelisted explicitly.
 | `netpol-allow-prometheus-to-envoy-admin` | Prometheus scrape → Envoy `:9901/metrics` |
 | `netpol-allow-redis` | API → Redis (rate-limit counters) |
 
-Why this matters: default-deny forces us to be explicit about who talks to whom.
+Why this matters: default-deny forces me to be explicit about who talks to whom.
 It catches "I accidentally wired Payments directly to Redis" before it becomes a
 production incident.
 
@@ -241,9 +241,9 @@ a Redis sorted set with UUID members and Unix-timestamp scores.
 - TTL: 60s per key (matches the rate-limit window)
 - Resource limits: `cpu: 250m / 256Mi` (limit), `cpu: 50m / 64Mi` (request)
 
-We chose a plain Deployment + Service over the Bitnami Redis subchart because
-we don't need persistence, auth, or Sentinel. The Bitnami chart brings ~30 extra
-values for features we'd explicitly turn off anyway.
+I chose a plain Deployment + Service over the Bitnami Redis subchart because
+I don't need persistence, auth, or Sentinel. The Bitnami chart brings ~30 extra
+values for features I'd explicitly turn off anyway.
 
 ### PostgreSQL
 
@@ -437,7 +437,7 @@ partial failures, independent scaling) that are the whole point of the project.
 **Decision**: FastAPI for both services.
 
 **Why**: Auto-generated OpenAPI docs (`/docs`) come for free. Pydantic validation
-at the model level means we don't write `if amount <= 0: raise` manually. Async
+at the model level means I don't write `if amount <= 0: raise` manually. Async
 support means `httpx.AsyncClient` in the API gateway doesn't block a thread per
 in-flight request to Payments.
 
@@ -454,15 +454,15 @@ in-flight request to Payments.
 **Decision**: One Envoy instance as a dedicated front proxy, not as a sidecar
 injected into every pod.
 
-**Why**: A full service mesh (Istio, Linkerd) would give us mTLS, per-pod telemetry,
+**Why**: A full service mesh (Istio, Linkerd) would give me mTLS, per-pod telemetry,
 and more granular traffic control — but also a significant operational overhead for
-a single-node minikube cluster. A front proxy gives us retry, circuit breaking, and
+a single-node minikube cluster. A front proxy gives me retry, circuit breaking, and
 Envoy metrics (which are excellent) without the complexity of a mesh control plane.
 
-**What we give up**: mTLS between API and Payments. The traffic inside the cluster
+**What I give up**: mTLS between API and Payments. The traffic inside the cluster
 is unencrypted service-to-service. Acceptable for a sandboxed learning environment.
 
-**If this were production**: We'd move to Istio sidecars and add mTLS. The Envoy
+**If this were production**: I'd move to Istio sidecars and add mTLS. The Envoy
 config knowledge transfers directly — same filter chains, same retry policy syntax.
 
 ---
@@ -475,11 +475,11 @@ config knowledge transfers directly — same filter chains, same retry policy sy
 
 **Why**: v0.1.0 focused on the infrastructure layer — networking, resilience patterns,
 observability, CI/CD, security hardening. Adding a PostgreSQL ORM and migration tooling
-would have been real work that delayed the things we actually wanted to learn.
+would have been real work that delayed the things I actually wanted to learn.
 
 **Consequences**:
 - Payments data is lost on every pod restart or scale event
-- This is fine for chaos testing (we don't care about specific payment IDs)
+- This is fine for chaos testing (I don't care about specific payment IDs)
 - The PostgreSQL schema is designed and the Helm dependency is wired — migration is
   the first task in the next iteration
 
@@ -499,8 +499,8 @@ templates, not as a Bitnami subchart dependency.
 **Why**: The rate-limit middleware needs exactly one thing from Redis: an atomic
 sorted-set store for sliding-window counters. The counters are ephemeral by design
 (TTL = 60s, same as the window). No persistence, no auth, no replication, no Sentinel.
-The Bitnami chart has ~30 configurable parameters for features we'd explicitly disable.
-A 30-line Deployment template is more honest about what we actually need.
+The Bitnami chart has ~30 configurable parameters for features I'd explicitly disable.
+A 30-line Deployment template is more honest about what I actually need.
 
 ---
 
@@ -514,8 +514,8 @@ Grafana, Loki) is deployed.
 
 **Why**: Running a full kube-prometheus-stack and Envoy in Docker Compose would
 require significant extra config with no benefit for day-to-day service development.
-Compose is for fast iteration on service logic. Kubernetes is for integration testing
-and chaos work.
+Compose is for fast iteration on service logic. Kubernetes is where I do integration
+testing and chaos work.
 
 **Trade-offs**:
 - Local environment doesn't match production exactly (no Envoy, no NetworkPolicy)

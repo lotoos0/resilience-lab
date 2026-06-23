@@ -15,6 +15,7 @@ Implemented:
 - Basic Prometheus alert rules for v0.1.0
 - Grafana system overview dashboard JSON
 - Loki + Promtail log aggregation with a Loki datasource in Grafana (issue `#38`)
+- Chaos observability queries: pod kill recovery and latency injection monitoring (issue `#42`)
 
 Planned in separate issues:
 
@@ -190,6 +191,8 @@ rates instead of ever-growing totals.
 
 ![Resilience Lab – Traffic & Latency dashboard](img/resilience-dashboard.png)
 
+![Resilience Lab – System Overview dashboard](img/grafana-dashboard-overview.png)
+
 ## Prometheus Configuration
 
 Prometheus-related manifests:
@@ -329,6 +332,68 @@ Restore API:
 ```bash
 kubectl scale deployment -n resilience-lab resilience-lab-api --replicas=2
 ```
+
+## Chaos Observability
+
+PromQL queries for observing the system during chaos experiments. Use these in
+Prometheus UI (`http://localhost:9090`) or in Grafana → **Explore** with the
+Prometheus datasource selected.
+
+Full runbooks: [`docs/runbooks/chaos-pod-kill.md`](runbooks/chaos-pod-kill.md),
+[`docs/runbooks/chaos-latency-injection.md`](runbooks/chaos-latency-injection.md),
+[`docs/runbooks/rollback-vs-recover.md`](runbooks/rollback-vs-recover.md).
+
+### Pod Kill — Recovery Monitoring
+
+```promql
+# Available replicas — drops to 0 on kill, recovers in ~15s
+kube_deployment_status_replicas_available{deployment="resilience-lab-payments"}
+
+# Pod restart counter — increments after each kill
+kube_pod_container_status_restarts_total{namespace="resilience-lab", container="payments"}
+
+# Envoy outlier ejections — should stay 0 during fast pod recovery
+envoy:outlier_ejections:rate5m
+```
+
+Verify no alerts fired during the test:
+
+```promql
+ALERTS{alertname=~"HighErrorRate|APIDown|PrometheusTargetDown", alertstate="firing"}
+```
+
+Expected result: `no data` (empty vector).
+
+### Latency Injection — Monitoring 300ms netem Delay
+
+```promql
+# Envoy p95 upstream latency — rises to ~300ms+ during injection
+envoy:upstream_rq_time_p95:rate5m
+
+# API 5xx error rate — should remain low (Envoy retries absorb slow responses)
+api:http_5xx:rate5m
+
+# Envoy retry rate — rises when upstream latency triggers timeout retries
+envoy:retries:rate5m
+```
+
+LogQL to correlate payments logs during injection:
+
+```logql
+{app="payments"} | json | line_format "{{.log}}"
+```
+
+### Grafana Panels to Watch
+
+Open the **"Resilience Lab – Traffic & Latency"** dashboard during any chaos
+experiment and monitor:
+
+| Panel | Expected behaviour during chaos |
+|-------|--------------------------------|
+| p95 Latency | Spikes to 300ms+ during latency injection; normal during pod kill |
+| Envoy Retries | Rises during latency injection if timeout triggers retries |
+| Outlier Ejections | Should remain 0 (payments recovers before ejection threshold) |
+| HTTP Status Codes | No spike in 5xx during pod kill (Envoy routes around dead pod) |
 
 ## Troubleshooting
 

@@ -313,9 +313,11 @@ lint ──┬── test ──┬── integration-test
 | `integration-test` | Spins up full Docker Compose stack, waits for healthy, runs `pytest -m integration`, tears down |
 | `build` | Builds both images, runs Trivy image scan (exit-code 1 on CRITICAL/HIGH unfixed CVEs) |
 
-**Why real services in unit tests**: The test job in CI uses actual PostgreSQL
-and Redis containers (not mocks) even for unit tests. The rate-limit middleware
-hits Redis for every request — a mock would paper over real connection behavior.
+**Note on CI service containers**: The test job spins up postgres:16 and
+redis:7-alpine — but the unit tests mock both (Redis via `unittest.mock.Mock`,
+PostgreSQL is unused entirely). The containers are there as groundwork for
+future integration-level unit tests, not because anything currently requires
+a live connection.
 
 **Why integration tests are separate**: They need Docker Compose, which means
 building images, which takes 2–3 minutes. Keeping them in a separate job lets

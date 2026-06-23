@@ -1,0 +1,6 @@
+NAME                                      READY   STATUS    RESTARTS       AGE
+envoy-proxy-64b846d54f-lzsh7              1/1     Running   3 (16h ago)    3d14h
+redis-84bbc776-c9mxr                      1/1     Running   8 (16h ago)    15d
+resilience-lab-api-b4598b7ff-8tnzt        1/1     Running   9 (16h ago)    18h
+resilience-lab-api-b4598b7ff-mlxtz        1/1     Running   10 (16h ago)   17h
+resilience-lab-payments-7f78b8764-btdh7   1/1     Running   0              27s

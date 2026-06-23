@@ -8,6 +8,8 @@ observed during the development of the Resilience Lab project.
 | Runbook | Severity | Status | Description |
 |---------|----------|--------|-------------|
 | [TEMPLATE](./TEMPLATE.md) | - | Active | Template for new runbooks |
+| [Chaos test — pod kill / partial outage (Payments)](./chaos-pod-kill.md) | P2 | Active | kubectl delete pod via fault-inject.sh; ~15s recovery; HPA/PDB behavior documented |
+| [Rollback vs Recover](./rollback-vs-recover.md) | P1 | Active | Decision guide: when to wait for auto-recovery vs. manual rollback during partial outage |
 | [Chaos test — latency injection 300ms (Payments)](./chaos-latency-injection.md) | P2 | Active | tc netem delay 300ms via fault-inject.sh; two-stage security; PromQL evidence |
 | [Prometheus targets missing or firing after observability setup](./TROUBLESHOOTING_OBSERVABILITY_TARGETS.md) | P2 | Active | ServiceMonitor discovery, API /metrics 500, Envoy apply, HPA/Helm conflicts |
 | [Prometheus cannot scrape API /metrics](./TROUBLESHOOTING_PROMETHEUS_SCRAPE.md) | P2 | Active | Redis connectivity + NetworkPolicy ingress issue |

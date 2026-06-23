@@ -1,6 +1,23 @@
 # Observability
 
-This document describes the current v0.1.0 observability baseline for Resilience Lab.
+This page is the starting point for checking whether Resilience Lab is observable:
+what is scraped, where dashboards live, which alerts exist, and how to verify chaos
+experiments with Prometheus, Grafana, and Loki.
+
+Use it when you want to:
+
+- confirm that API and Envoy metrics are scraped by Prometheus;
+- inspect service logs in Loki;
+- verify Grafana dashboards after deployment;
+- observe pod kill and latency injection experiments;
+- troubleshoot missing targets, dashboards, or alerts.
+
+## How to read this document
+
+- Start with **[Current Scope](#current-scope)** to see what observability exists today.
+- Use **[Quick Verification](#quick-verification)** after deploying or upgrading the stack.
+- Use **[Chaos Observability](#chaos-observability)** while running pod kill or latency injection tests.
+- Use **[Troubleshooting](#troubleshooting)** when targets, alerts, or dashboards are missing.
 
 ## Current Scope
 
@@ -144,7 +161,7 @@ so it can be parsed and filtered by tenant:
 > won't see the `tenant=`/`status=` fields — unwrap with `| json | line_format
 > "{{.log}}"` first, as in the "Parsing JSON container log lines" example above.
 
-### Verification
+### Loki verification
 
 Open Grafana → **Explore**, select the **Loki** datasource, and run the queries above.
 Use the label browser to confirm `app`, `namespace`, and `container` values match the
@@ -163,7 +180,7 @@ as code, the same way `kube-prometheus-stack` loads its bundled dashboards and
   picks up the labeled ConfigMap and loads the dashboard into Grafana automatically
   — no manual import needed.
 
-Verification:
+Dashboard verification:
 
 ```bash
 kubectl get configmap -n resilience-lab -l grafana_dashboard=1
@@ -233,103 +250,69 @@ The v0.1.0 alert baseline is intentionally small and practical.
 
 ### HighErrorRate
 
-Fires when more than 5% of API requests return 5xx responses for 5 minutes while the API is receiving traffic.
-
-Purpose:
-
-- catch application regressions;
-- catch upstream dependency failures surfaced through the API;
-- provide a simple demo-friendly error-rate alert.
+Fires when more than 5% of API requests return 5xx for 5 consecutive minutes while
+the API is receiving traffic. Catches application regressions and upstream dependency
+failures (e.g. Payments returning 500s) before they become user-visible outages.
 
 ### APIDown
 
-Fires when Prometheus cannot scrape the API target for 1 minute, or when the API target is not discovered at all.
-
-Purpose:
-
-- catch API pod/service/scrape failures;
-- validate that API monitoring is not silently broken.
+Fires when Prometheus cannot scrape the API target for 1 minute, or when the target
+is not discovered at all. Useful for catching silent scrape failures — if this fires
+in a healthy cluster, check ServiceMonitor selectors and NetworkPolicy.
 
 ### PrometheusTargetDown
 
-Fires when any target in the `resilience-lab` namespace is down for more than 2 minutes, or when no target from the `resilience-lab` namespace is discovered at all.
+Fires when any target in the `resilience-lab` namespace is unreachable for more than
+2 minutes, or when no target is discovered at all. Broader than `APIDown` — covers
+Envoy and any future monitored service in the namespace.
 
-Purpose:
+## Quick Verification
 
-- catch scrape degradation across the lab;
-- detect failures in API, Envoy, or future monitored targets.
+Run this after deploying or upgrading the stack to confirm everything is wired correctly.
 
-## Verification
-
-Apply the rules:
-
-```bash
-kubectl apply -f deploy/prometheus/rules.yaml
-```
-
-Check the rule object:
-
-```bash
-kubectl get prometheusrule -n monitoring
-kubectl describe prometheusrule resilience-lab-rules -n monitoring
-```
-
-Port-forward Prometheus:
+### Prometheus
 
 ```bash
 kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
 ```
 
-Open:
+Open `http://localhost:9090/targets` — both API and Envoy targets should be `UP`.
+Open `http://localhost:9090/alerts` — rules should be visible, none `FIRING` in a healthy cluster.
 
-```text
-http://localhost:9090/targets
-http://localhost:9090/alerts
-```
-
-Expected healthy state:
-
-- API target is `UP`;
-- Envoy target is `UP`;
-- alert rules are visible;
-- alerts are not `FIRING` in a healthy environment.
-
-If Prometheus shows only `kube-system` and `monitoring` targets, and no `resilience-lab` targets, check ServiceMonitor discovery:
+If `resilience-lab` targets are missing (only `kube-system` / `monitoring` appear), the
+ServiceMonitor selectors likely don't match. Check with:
 
 ```bash
-kubectl get namespace --show-labels
 kubectl get servicemonitor -A
 kubectl get svc -n resilience-lab --show-labels
-kubectl get endpoints -n resilience-lab
 kubectl describe servicemonitor -n monitoring resilience-lab-api-metrics
-kubectl describe servicemonitor -n monitoring envoy-proxy-metrics
 ```
 
-The expected setup is:
+Apply or re-apply the rules if needed:
 
-- `resilience-lab-api-metrics` exists in the `monitoring` namespace;
-- `envoy-proxy-metrics` exists in the `monitoring` namespace;
-- the API Service labels match `app.kubernetes.io/name: api`;
-- the Envoy Service labels match `app: envoy-proxy`;
-- the `resilience-lab` namespace exists and contains the API and Envoy services.
+```bash
+kubectl apply -f deploy/prometheus/rules.yaml
+kubectl get prometheusrule -n monitoring
+```
 
-## Optional APIDown Test
+### Loki
 
-Scale API down:
+Open Grafana → **Explore** → Loki datasource and run `{app="api"}`. If no logs appear,
+check Promtail pods in `monitoring` and verify the `resilience-lab` namespace labels.
+
+### Grafana dashboards
+
+```bash
+curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/api/search
+```
+
+Should return both `resilience-lab-0-system-overview` and `resilience-core`.
+
+### Optional: trigger APIDown alert
 
 ```bash
 kubectl scale deployment -n resilience-lab resilience-lab-api --replicas=0
-```
-
-Wait 1-3 minutes, then check:
-
-```text
-http://localhost:9090/alerts
-```
-
-Restore API:
-
-```bash
+# wait 1-3 min, check http://localhost:9090/alerts
 kubectl scale deployment -n resilience-lab resilience-lab-api --replicas=2
 ```
 

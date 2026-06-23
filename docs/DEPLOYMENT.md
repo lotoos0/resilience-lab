@@ -27,7 +27,7 @@ There are two ways to run Resilience Lab, and they serve different purposes:
 | Environment | Command | What starts | Use for |
 |-------------|---------|-------------|---------|
 | **Docker Compose** | `make dev` | API, Payments, PostgreSQL, Redis | Fast iteration on service code |
-| **Kubernetes (minikube)** | `make helm-up-dev` | Everything above + Envoy, Traefik, Prometheus, Grafana, Loki | Integration tests, chaos work, observability |
+| **Kubernetes (minikube)** | `make helm-up-dev` | Everything above + Envoy, Traefik (+ Prometheus/Grafana/Loki separately) | Integration tests, chaos work, observability |
 
 The rule: if you're touching service logic, Compose is enough. If you're running
 chaos tests or validating observability, you need Kubernetes. `make dev` won't
@@ -69,8 +69,8 @@ That's it. Docker Compose starts 4 services in dependency order:
 
 1. **PostgreSQL** (postgres:16) — waits for `pg_isready`
 2. **Redis** (redis:7-alpine) — waits for `redis-cli ping`
-3. **Payments** — waits for its own `/healthz`
-4. **API** — waits for Payments healthcheck, then comes up last
+3. **Payments** — waits for PostgreSQL and Redis healthchecks
+4. **API** — waits for PostgreSQL, Redis, and Payments healthchecks; comes up last
 
 Startup takes ~30s on a cold run (image pulls aside). The `depends_on: condition:
 service_healthy` chain means you won't hit a partially started stack.
@@ -135,8 +135,9 @@ docker build -f services/api/Dockerfile -t resilience-lab-api:local .
 docker build -f services/payments/Dockerfile -t resilience-lab-payments:local .
 ```
 
-`values-dev.yaml` uses `tag: local` and `pullPolicy: IfNotPresent`, so Kubernetes
-picks up these images directly without needing a registry.
+`values-dev.yaml` uses different strategies per service:
+- **Payments**: `repository: resilience-lab-payments`, `tag: local`, `pullPolicy: IfNotPresent` — picks up the locally built image above.
+- **API**: `tag: 8b86f3d` (a specific GHCR SHA). With `pullPolicy: IfNotPresent` it won't pull if an image with that tag already exists in minikube — but on a fresh cluster it will pull from GHCR. To force a fully local build, override the tag: `helm upgrade ... --set api.image.tag=local`.
 
 **Step 3** — generate TLS certs for Traefik:
 
@@ -297,19 +298,23 @@ Two GitHub Actions workflows in `.github/workflows/`:
 
 ### CI (`ci.yml`) — every push and PR to `main`/`develop`
 
-Runs 4 jobs, in this order:
+Runs 5 jobs. `lint`, `trivy-fs`, and `test` run in parallel. `integration-test`
+and `build` both need `lint` and `test` to pass first:
 
 ```
-lint ──┬── test ──┬── integration-test
-       │          │
-       └──────────┴── build
+lint ──────┬── integration-test
+           │
+test ──────┤
+           └── build
+
+trivy-fs (independent, runs in parallel)
 ```
 
 | Job | What it does |
 |-----|-------------|
 | `lint` | `ruff check services/` |
 | `trivy-fs` | Trivy filesystem scan (CRITICAL + HIGH), results to GitHub Security tab |
-| `test` | Unit tests (`pytest -m "not integration"`) with real postgres:16 + redis:7-alpine sidecar services, coverage → Codecov |
+| `test` | Unit tests (`pytest -m "not integration"`) with postgres:16 + redis:7-alpine sidecar containers (mocked by tests), coverage → Codecov |
 | `integration-test` | Spins up full Docker Compose stack, waits for healthy, runs `pytest -m integration`, tears down |
 | `build` | Builds both images, runs Trivy image scan (exit-code 1 on CRITICAL/HIGH unfixed CVEs) |
 
@@ -377,7 +382,8 @@ On some clusters this alone isn't enough — `runAsRoot: true` may be needed
 
 ### FAIL_MODE and SLOW_MODE
 
-Inject via env var — no pod restart needed:
+Inject via env var — triggers an automatic rolling update (new pods come up with
+the new env var, old ones terminate):
 
 ```fish
 ./scripts/fault-inject.sh failure   # FAIL_MODE=1 → Payments returns 500

@@ -108,10 +108,11 @@ make restart     # make down && make dev
 ### One Honest Note About PostgreSQL in Compose
 
 Docker Compose starts a PostgreSQL container and the services receive a
-`DATABASE_URL` env var. However, the Payments service uses in-memory storage
-and ignores it entirely. The container is there as infrastructure groundwork
-and to keep local service configuration close to the Kubernetes env vars. See
-[ADR-004 in ARCHITECTURE.md](ARCHITECTURE.md#adr-004-in-memory-storage-in-v010).
+`DATABASE_URL` env var. However, v0.1.0 service code does not open a PostgreSQL
+connection: Payments uses in-memory storage, and API does not use a database
+client at all. The container is there as infrastructure groundwork and to keep
+local service configuration close to the Kubernetes env vars. See [ADR-004 in
+ARCHITECTURE.md](ARCHITECTURE.md#adr-004-in-memory-storage-in-v010).
 
 ---
 
@@ -162,16 +163,6 @@ into `deploy/traefik/certs/`. These are gitignored — don't commit them. This
 script only creates files; it does not create the Kubernetes TLS Secret or apply
 `deploy/traefik/ingressroute.yaml`.
 
-After the `resilience-lab` namespace exists, wire those files into Kubernetes:
-
-```fish
-kubectl create secret tls resilience-lab-tls \
-  -n resilience-lab \
-  --cert=deploy/traefik/certs/tls.crt \
-  --key=deploy/traefik/certs/tls.key \
-  --dry-run=client -o yaml | kubectl apply -f -
-```
-
 **Step 4** — install the Helm chart:
 
 ```fish
@@ -188,6 +179,17 @@ helm upgrade --install resilience-lab deploy/helm/ \
   --values deploy/helm/values-dev.yaml \
   --namespace resilience-lab \
   --create-namespace
+```
+
+If you generated Traefik certs in Step 3, wire them into Kubernetes after
+`helm-up-dev` creates the namespace:
+
+```fish
+kubectl create secret tls resilience-lab-tls \
+  -n resilience-lab \
+  --cert=deploy/traefik/certs/tls.crt \
+  --key=deploy/traefik/certs/tls.key \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 **Step 5** — optional but required for Envoy-based resilience checks:
@@ -275,6 +277,8 @@ HTTP status code — useful for watching the system recover in real time.
 ```fish
 # Upgrade after a Payments code change (rebuild resilience-lab-payments:local first)
 make helm-up-dev
+kubectl rollout restart deployment/resilience-lab-payments -n resilience-lab
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 
 # Upgrade after a local API code change (rebuild api:local first)
 helm upgrade --install resilience-lab deploy/helm/ \
@@ -282,6 +286,8 @@ helm upgrade --install resilience-lab deploy/helm/ \
   --namespace resilience-lab \
   --set api.image.repository=api \
   --set api.image.tag=local
+kubectl rollout restart deployment/resilience-lab-api -n resilience-lab
+kubectl rollout status deployment/resilience-lab-api -n resilience-lab
 
 # Rollback to previous revision
 make rollback-1
@@ -298,6 +304,11 @@ make helm-down
 # Tear down the separately applied Envoy manifests too
 kubectl delete -f deploy/envoy/
 ```
+
+The rollout restart is intentional when you reuse the same local tag. Kubernetes
+doesn't restart pods just because a same-named image was rebuilt inside minikube;
+it needs a changed pod template or an explicit nudge. Computers, sadly, do not
+smell fresh Docker layers.
 
 ### Observability Stack
 
@@ -448,6 +459,7 @@ helm upgrade resilience-lab deploy/helm/ \
   -n resilience-lab \
   -f deploy/helm/values-dev.yaml \
   -f deploy/helm/values-chaos.yaml
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 ```
 
 `values-chaos.yaml` currently enables both `NET_ADMIN` and `runAsRoot: true` for
@@ -478,6 +490,7 @@ If you applied `values-chaos.yaml`, restore baseline:
 
 ```fish
 helm upgrade resilience-lab deploy/helm/ -n resilience-lab -f deploy/helm/values-dev.yaml
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 ```
 
 See [runbooks/chaos-latency-injection.md](runbooks/chaos-latency-injection.md)
@@ -520,6 +533,8 @@ looking. For the default dev setup, rebuild the Payments image inside minikube:
 eval (minikube docker-env)
 docker build -f services/payments/Dockerfile -t resilience-lab-payments:local .
 make helm-up-dev
+kubectl rollout restart deployment/resilience-lab-payments -n resilience-lab
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 ```
 
 If the API pod is the one failing, either make sure

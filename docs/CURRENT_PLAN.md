@@ -242,14 +242,16 @@ GitHub Issues rule:
      make lint          # Code quality
      k6 run tests/load/rate-limit-test.js  # Load test
      ```
-   - [ ] Check all M3 DoD criteria:
+   - [x] Check all M3 DoD criteria:
      - [x] Rate limiting validated ✅
      - [x] Prometheus + Grafana ✅
      - [x] Loki + Promtail ✅ (issue #38)
-     - [ ] Basic alerts ⚠️ (doing now)
+     - [x] Basic alerts ✅ (deploy/prometheus/rules.yaml, issue #42)
      - [x] Load tests passing ✅
-   - [ ] Update progress: M3 → 90%
-   - [ ] Commit: `docs: M3 review - mark as 90% complete`
+     - [x] Chaos test — pod kill ✅ (issue #41)
+     - [x] Chaos test — latency injection ✅ (issue #40)
+   - [x] Update progress: M3 → 100%
+   - [x] Commit: `docs: M3 review - mark as 100% complete`
 
 **Acceptance:**
 - ✅ 3 chaos scenarios tested and passed

@@ -30,12 +30,12 @@ Use it to practice DevOps/SRE workflows, test failure scenarios, and show a work
 
 ## What's in the box
 
-- **API + Payments services** — FastAPI, Python 3.11, Prometheus metrics, rate limiting
-- **Networking layer** — Traefik ingress → Envoy front-proxy (retry, timeout, circuit breaker)
-- **Observability** — Prometheus + Grafana dashboards (system overview, traffic & latency), alert rules
+- **API + Payments services** — FastAPI, Python 3.11, Prometheus metrics, per-tenant rate limiting backed by Redis
+- **Networking layer** — Traefik ingress → Envoy front-proxy (retry, per-try timeout, circuit breaker, outlier ejection, bulkhead)
+- **Observability** — Prometheus + Grafana (System Overview + Traffic & Latency dashboards), Loki + Promtail logs, alert rules
 - **Kubernetes-ready** — Helm charts, HPA, PDB, NetworkPolicy, non-root security baseline
 - **CI/CD** — GitHub Actions: lint → test → integration → build → publish to GHCR
-- **Fault injection** — scripts for failure, slow, and kill scenarios
+- **Chaos engineering** — fault injection scripts (failure, latency, pod kill) + operational runbooks
 
 ---
 
@@ -126,19 +126,28 @@ backed by Redis, so it works correctly across replicas.
 
 ---
 
-## Current state — M3 Complete
+## Current state — preparing v0.1.0
 
-M0–M2 done (bootstrap, CI/CD, Helm, networking layer, resilience primitives). M3 shipped:
+M0–M3 complete. The full stack is working and validated.
 
+**Resilience primitives:**
 - ✅ Rate limiting — Redis-backed, per-tenant, k6 validated
+- ✅ Envoy retry with per-try timeout (200ms) and exponential backoff
+- ✅ Outlier ejection, circuit breaker, bulkhead — tuned and stress-tested
+- ✅ HPA + PDB — auto-scaling and disruption budget validated under load
+
+**Observability:**
 - ✅ Prometheus metrics + ServiceMonitors + recording rules
 - ✅ Alert rules (HighErrorRate, APIDown, PrometheusTargetDown)
-- ✅ Grafana: System Overview + Traffic & Latency dashboards
+- ✅ Grafana: System Overview + Traffic & Latency dashboards (retries, ejections, 429s, bulkhead overflow)
 - ✅ Loki + Promtail log aggregation, LogQL in Grafana Explore
-- ✅ Grafana resilience dashboard: traffic, latency, retries, outlier
-  ejections, rate-limit denials, and bulkhead overflow
 
-Up next — **M4:** security audit, chaos scenarios, and the next stable release.
+**Chaos engineering:**
+- ✅ Latency injection — 300ms tc netem delay on Payments, Grafana evidence captured
+- ✅ Pod kill — auto-recovery ~15s, HPA/PDB behavior documented
+- ✅ Runbooks: chaos-pod-kill, chaos-latency-injection, rollback-vs-recover
+
+Next: release notes, CHANGELOG, merge to main, tag **v0.1.0**.
 
 ---
 
@@ -147,16 +156,16 @@ Up next — **M4:** security audit, chaos scenarios, and the next stable release
 Requires the Helm deployment to be running (`make helm-up-dev`).
 
 ```bash
-# Inject failures (triggers outlier detection)
-./scripts/fault-inject.sh failure
+# Inject 300ms latency to Payments (triggers Envoy retries and timeout behavior)
+./scripts/fault-inject.sh latency
 
-# Inject latency (triggers per-try timeouts)
-./scripts/fault-inject.sh slow
-
-# Kill a pod (tests retry + auto-recovery)
+# Kill a Payments pod (tests auto-recovery, HPA, PDB behavior)
 ./scripts/fault-inject.sh kill
 
-# Cleanup
+# Inject failures — Payments returns 500 (triggers outlier ejection)
+./scripts/fault-inject.sh failure
+
+# Cleanup all injections
 ./scripts/fault-inject.sh cleanup
 ```
 
@@ -166,6 +175,9 @@ Watch Envoy stats during a test:
 kubectl port-forward -n resilience-lab svc/envoy-proxy 9901:9901
 curl http://localhost:9901/stats | grep -E 'outlier|retry|timeout'
 ```
+
+For step-by-step procedures, expected Grafana graphs, and evidence screenshots:
+[docs/runbooks/](docs/runbooks/README.md)
 
 ---
 
@@ -190,9 +202,10 @@ Coding standards, project structure, and onboarding: [docs/DEVELOPMENT.md](docs/
 | [Architecture](docs/ARCHITECTURE.md) | System design, ADRs, design patterns |
 | [Development](docs/DEVELOPMENT.md) | Setup, structure, coding standards |
 | [Deployment](docs/DEPLOYMENT.md) | Full Helm deployment guide |
-| [Observability](docs/observability.md) | Prometheus, Grafana, Loki, LogQL |
-| [M3 Resilience Patterns](docs/M3_RESILIENCE_PATTERNS.md) | Rate limiting, load tests |
-| [Runbooks](docs/runbooks/README.md) | Incident runbooks |
+| [Observability](docs/observability.md) | Prometheus, Grafana, Loki, LogQL, chaos PromQL queries |
+| [Security](docs/security.md) | Security baseline, CVE patching, Trivy |
+| [M3 Resilience Patterns](docs/M3_RESILIENCE_PATTERNS.md) | Rate limiting, bulkhead, load tests |
+| [Runbooks](docs/runbooks/README.md) | Operational runbooks: chaos, observability, troubleshooting |
 | [Retrospectives](docs/RETROSPECTIVES.md) | Milestone retrospectives |
 | [Contributing](CONTRIBUTING.md) | PR process, commit format |
 

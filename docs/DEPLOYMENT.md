@@ -27,7 +27,7 @@ There are two ways to run Resilience Lab, and they serve different purposes:
 | Environment | Command | What starts | Use for |
 |-------------|---------|-------------|---------|
 | **Docker Compose** | `make dev` | API, Payments, PostgreSQL, Redis | Fast iteration on service code |
-| **Kubernetes (minikube)** | `make helm-up-dev` | Everything above + Envoy, Traefik (+ Prometheus/Grafana/Loki separately) | Integration tests, chaos work, observability |
+| **Kubernetes (minikube)** | `make helm-up-dev` | API, Payments, Redis, HPAs/PDBs/NetworkPolicies, Grafana dashboard ConfigMaps | Integration tests, chaos work, observability |
 
 The rule: if you're touching service logic, Compose is enough. If you're running
 chaos tests or validating observability, you need Kubernetes. `make dev` won't
@@ -52,8 +52,9 @@ Everything above, plus:
 - [Helm](https://helm.sh/) 3+
 
 The Helm chart targets minikube. Running it against a remote cluster works, but
-`values-dev.yaml` uses locally built images (`pullPolicy: IfNotPresent`) — you'd
-need to adjust image tags and registry for anything beyond a laptop.
+`values-dev.yaml` mixes one pinned GHCR image for API with one local image for
+Payments (`pullPolicy: IfNotPresent`). For anything beyond a laptop, use pushed
+registry tags for both services. Tiny footgun, big `ImagePullBackOff` energy.
 
 ---
 
@@ -109,7 +110,7 @@ make restart     # make down && make dev
 Docker Compose starts a PostgreSQL container and the services receive a
 `DATABASE_URL` env var. However, the Payments service uses in-memory storage
 and ignores it entirely. The container is there as infrastructure groundwork
-and to keep the Compose environment consistent with the Helm chart. See
+and to keep local service configuration close to the Kubernetes env vars. See
 [ADR-004 in ARCHITECTURE.md](ARCHITECTURE.md#adr-004-in-memory-storage-in-v010).
 
 ---
@@ -128,25 +129,38 @@ The `eval` is essential. Without it, `docker build` writes images to the host
 daemon, not to minikube's — and your pods get `ImagePullBackOff` because they
 look for images that don't exist inside the cluster.
 
-**Step 2** — build images locally:
+**Step 2** — build the local image that `values-dev.yaml` actually references:
 
 ```fish
-docker build -f services/api/Dockerfile -t resilience-lab-api:local .
 docker build -f services/payments/Dockerfile -t resilience-lab-payments:local .
 ```
 
 `values-dev.yaml` uses different strategies per service:
 - **Payments**: `repository: resilience-lab-payments`, `tag: local`, `pullPolicy: IfNotPresent` — picks up the locally built image above.
-- **API**: `tag: 8b86f3d` (a specific GHCR SHA). With `pullPolicy: IfNotPresent` it won't pull if an image with that tag already exists in minikube — but on a fresh cluster it will pull from GHCR. To force a fully local build, override the tag: `helm upgrade ... --set api.image.tag=local`.
+- **API**: `repository: ghcr.io/lotoos0/resilience-lab-api`, `tag: 8b86f3d`. With `pullPolicy: IfNotPresent`, minikube reuses that exact image if it already exists locally; otherwise it pulls from GHCR.
 
-**Step 3** — generate TLS certs for Traefik:
+If you want a fully local API build too, override both repository and tag:
+
+```fish
+docker build -f services/api/Dockerfile -t api:local .
+helm upgrade --install resilience-lab deploy/helm/ \
+  --values deploy/helm/values-dev.yaml \
+  --namespace resilience-lab \
+  --create-namespace \
+  --set api.image.repository=api \
+  --set api.image.tag=local
+```
+
+**Step 3** — optional: generate TLS certs for the separate Traefik IngressRoute:
 
 ```fish
 ./scripts/generate-certs.sh
 ```
 
 Generates a self-signed RSA 2048 cert (365-day validity) for `resilience-lab.local`
-into `deploy/traefik/certs/`. These are gitignored — don't commit them.
+into `deploy/traefik/certs/`. These are gitignored — don't commit them. This
+script only creates files; it does not create the Kubernetes TLS Secret or apply
+`deploy/traefik/ingressroute.yaml`.
 
 **Step 4** — install the Helm chart:
 
@@ -164,25 +178,46 @@ helm upgrade --install resilience-lab deploy/helm/ \
   --create-namespace
 ```
 
+**Step 5** — optional but required for Envoy-based resilience checks:
+
+```fish
+kubectl apply -f deploy/envoy/
+```
+
+Envoy is not part of the Helm chart today. The chart prepares some Envoy-facing
+policy/PDB objects, but the actual Envoy ConfigMap, Deployment, and Service live
+under `deploy/envoy/`. Yes, that split is a little spicy; at least now the docs
+admit it out loud.
+
 ### What Helm Deploys
 
-The parent chart (`deploy/helm/`, version `0.1.0`) deploys:
+The parent chart (`deploy/helm/`, version `0.1.0`) renders 20 main resources:
 
 | Resource | Count | Notes |
 |----------|-------|-------|
-| Deployments | 3 | API, Payments, Envoy |
-| Services | 3 | ClusterIP for each |
+| Deployments | 3 | API, Payments, Redis |
+| Services | 3 | API, Payments, Redis |
 | HPAs | 2 | API (2→5), Payments (1→3) |
-| PDBs | 3 | minAvailable: 1 each |
-| NetworkPolicies | 6 | default-deny + explicit allows |
-| ConfigMap (Envoy config) | 1 | `envoy-config` |
+| PDBs | 3 | API, Payments, and an Envoy PDB for the separately applied Envoy deployment |
+| NetworkPolicies | 7 | default-deny + explicit allows, including Envoy-facing policies |
 | ConfigMaps (Grafana dashboards) | 2 | System Overview, Resilience |
-| Redis Deployment + Service | 1+1 | Plain, no Bitnami subchart |
+
+Redis is a plain Deployment + Service included in the counts above; there is no
+Bitnami subchart involved.
+
+The render also includes 4 Helm test Pods. Three are simple health checks. One
+legacy integration test still calls `/api/payments/test`; the current API exposes
+`/pay`, so treat that test as chart debt until it is aligned. Documentation
+should not sell you a unicorn with a broken curl command.
+
+No PostgreSQL or Envoy Deployment is rendered by the Helm chart today.
+`DATABASE_URL` is still present in service env vars as future groundwork, but
+v0.1.0 service code does not depend on a live Kubernetes PostgreSQL pod.
 
 **Dev overrides** (`values-dev.yaml`):
 - `api.replicaCount: 1` (saves minikube resources)
 - `payments.replicaCount: 1`
-- Local image tags (`pullPolicy: IfNotPresent`)
+- API pinned to GHCR tag `8b86f3d`; Payments uses local tag `resilience-lab-payments:local`
 - `LOG_LEVEL: DEBUG`
 
 ### Verify the Deployment
@@ -191,20 +226,30 @@ The parent chart (`deploy/helm/`, version `0.1.0`) deploys:
 kubectl get pods -n resilience-lab; kubectl get hpa -n resilience-lab
 ```
 
-Run Helm tests (connection smoke tests baked into the chart):
+Run Helm tests if you specifically want to exercise the chart hooks:
 
 ```fish
 make helm-test
 ```
 
-Access via Traefik (add `resilience-lab.local` to `/etc/hosts` pointing at
-`$(minikube ip)` first):
+Remember the legacy `/api/payments/test` hook noted above. For a boring and
+reliable smoke check after applying `deploy/envoy/`, port-forward Envoy:
+
+```fish
+kubectl port-forward -n resilience-lab svc/envoy-proxy 8080:80
+curl http://localhost:8080/healthz
+```
+
+Access via Traefik only after you install Traefik CRDs/controller, create the TLS
+Secret, and apply `deploy/traefik/ingressroute.yaml` (add
+`resilience-lab.local` to `/etc/hosts` pointing at `$(minikube ip)` first):
 
 ```fish
 curl -k https://resilience-lab.local/api/healthz
 ```
 
-Or use `health-loop.sh` for a continuous stream of requests during chaos testing:
+Or use `health-loop.sh` for a continuous stream of requests during chaos testing
+after the Envoy service exists:
 
 ```fish
 ./scripts/health-loop.sh
@@ -259,14 +304,14 @@ Both images are based on `python:3.11-slim`. The builds run from the repo root
 **Payments image** (`services/payments/Dockerfile`):
 - Same as API, but also installs `iproute2`
 - `iproute2` ships the `tc` command — without it, `fault-inject.sh latency`
-  fails with a missing binary. This is why it's in the production image and
-  not just a dev dependency.
+  fails with a missing binary. This is why it's in the image used for chaos
+  runs and not just in a local shell.
 - Port: `8001`
 
 Security baseline applied in both:
-- `RUN apt-get upgrade -y` — patches OS packages at build time (picked up CVEs
-  like OpenSSL CVE-2026-45447)
+- `RUN apt-get upgrade -y` — patches OS packages at build time
 - `pip install --no-cache-dir` — no pip cache left in the layer
+- `pip install --upgrade "wheel>=0.46.2"` — keeps the wheel package on a patched baseline
 - `USER appuser` — non-root at runtime
 - `HEALTHCHECK` — Docker-native probe on `/healthz`
 
@@ -349,6 +394,7 @@ the K8s deploy would mean committing cluster credentials — not worth it.
 
 Chaos tests run against the Kubernetes cluster. Docker Compose is not enough
 because you need Envoy to observe retries, ejections, and circuit breaking.
+Run `kubectl apply -f deploy/envoy/` before the Envoy-facing checks.
 
 ### Before Running Chaos
 
@@ -356,6 +402,7 @@ Make sure you're running with dev values:
 
 ```fish
 make helm-up-dev
+kubectl apply -f deploy/envoy/
 ```
 
 ### Latency Injection
@@ -367,7 +414,7 @@ Injects 300ms `tc netem` delay on all Payments pods:
 ```
 
 This requires `NET_ADMIN` capability and `iproute2` in the container. If you
-get "Operation not permitted", apply chaos overrides first:
+get "Operation not permitted", apply chaos overrides:
 
 ```fish
 helm upgrade resilience-lab deploy/helm/ \
@@ -376,9 +423,9 @@ helm upgrade resilience-lab deploy/helm/ \
   -f deploy/helm/values-chaos.yaml
 ```
 
-`values-chaos.yaml` adds `NET_ADMIN` to the Payments pod security context.
-On some clusters this alone isn't enough — `runAsRoot: true` may be needed
-(it's in the file, commented as Stage 2).
+`values-chaos.yaml` currently enables both `NET_ADMIN` and `runAsRoot: true` for
+Payments because this cluster needed root for `tc netem` to behave. It is for
+active experiments only; restore `values-dev.yaml` afterwards.
 
 ### FAIL_MODE and SLOW_MODE
 
@@ -434,18 +481,24 @@ backing up at this stage.
 
 For common issues specific to Helm field ownership conflicts, minikube image
 visibility, Prometheus scrape failures, and observability targets, there are
-dedicated troubleshooting docs in `docs/troubleshooting/`. Short versions below.
+dedicated troubleshooting docs in `docs/runbooks/` and `docs/troubleshooting/`.
+Short versions below.
 
 ### Pod stuck in `ImagePullBackOff`
 
-Almost always means you built the image outside minikube's Docker daemon:
+Usually means the image tag in the Deployment does not exist where minikube is
+looking. For the default dev setup, rebuild the Payments image inside minikube:
 
 ```fish
 eval (minikube docker-env)
-docker build -f services/api/Dockerfile -t resilience-lab-api:local .
 docker build -f services/payments/Dockerfile -t resilience-lab-payments:local .
 make helm-up-dev
 ```
+
+If the API pod is the one failing, either make sure
+`ghcr.io/lotoos0/resilience-lab-api:8b86f3d` is pullable, or build a local API
+image and override both `api.image.repository` and `api.image.tag` as shown in
+the first-time setup section.
 
 ### Helm upgrade fails with field ownership error
 
@@ -453,7 +506,8 @@ Happens when `kubectl` and Helm both manage the same field. Fix:
 
 ```fish
 helm upgrade resilience-lab deploy/helm/ -n resilience-lab \
-  -f deploy/helm/values-dev.yaml --force-conflicts
+  -f deploy/helm/values-dev.yaml \
+  --force-conflicts
 ```
 
 See [runbooks/TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md](runbooks/TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md).

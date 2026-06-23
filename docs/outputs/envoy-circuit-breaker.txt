@@ -1,0 +1,38 @@
+## Test setup
+- Circuit breaker limits: max_connections=5, max_pending_requests=5, max_requests=10
+- Load: 30 concurrent POST /payments/process (SLOW_MODE=1, 2s sleep per request)
+- Source: exec from resilience-lab-api pod → Envoy ClusterIP → payments_service
+- Date: 2026-06-19
+
+## Envoy admin stats (/stats)
+cluster.payments_service.circuit_breakers.default.cx_open: 0
+cluster.payments_service.circuit_breakers.default.cx_pool_open: 0
+cluster.payments_service.circuit_breakers.default.rq_open: 0
+cluster.payments_service.circuit_breakers.default.rq_pending_open: 0
+cluster.payments_service.circuit_breakers.default.rq_retry_open: 0
+cluster.payments_service.circuit_breakers.high.cx_open: 0
+cluster.payments_service.circuit_breakers.high.cx_pool_open: 0
+cluster.payments_service.circuit_breakers.high.rq_open: 0
+cluster.payments_service.circuit_breakers.high.rq_pending_open: 0
+cluster.payments_service.circuit_breakers.high.rq_retry_open: 0
+cluster.payments_service.outlier_detection.ejections_overflow: 8
+cluster.payments_service.upstream_cx_overflow: 37
+cluster.payments_service.upstream_cx_pool_overflow: 0
+cluster.payments_service.upstream_rq_pending_overflow: 19
+cluster.payments_service.upstream_rq_retry_overflow: 8
+listener.0.0.0.0_10000.downstream_cx_overflow: 0
+listener.0.0.0.0_10000.downstream_global_cx_overflow: 0
+listener.admin.downstream_cx_overflow: 0
+listener.admin.downstream_global_cx_overflow: 0
+
+## Envoy Prometheus stats (/stats/prometheus)
+envoy_cluster_upstream_cx_overflow{envoy_cluster_name="payments_service"} 37
+envoy_cluster_upstream_rq_pending_overflow{envoy_cluster_name="payments_service"} 19
+
+## Result
+- 19/30 requests: 503 (upstream_rq_pending_overflow — bulkhead limit hit)
+- 11/30 requests: 504 (per_try_timeout=2s hit SLOW_MODE sleep(2))
+- payments pod restarted once (liveness probe failed while event loop blocked by
+  time.sleep in async handler — side effect of SLOW_MODE, not cluster collapse)
+- Pod recovered immediately, service continued operating
+- Bulkhead bounded queueing: overflow counters > 0, no cascade failure

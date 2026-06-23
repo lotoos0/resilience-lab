@@ -93,7 +93,7 @@ async def create_payment(payment: PaymentRequest) -> Dict[str, Any]:
 
 
 @app.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> Dict[str, Any]:
     """Root endpoint."""
     return {
         "service": "resilience-lab-api",

@@ -40,7 +40,7 @@ data:
                                 prefix: "/api"
                               route:
                                 cluster: api_service
-                                timeout: 10s
+                                timeout: 2s
                                 idle_timeout: 60s
                                 regex_rewrite:
                                   pattern:
@@ -49,13 +49,16 @@ data:
                                 retry_policy:
                                   retry_on: "5xx,reset,connect-failure,refused-stream"
                                   num_retries: 2
-                                  per_try_timeout: 2s
+                                  per_try_timeout: 0.2s
+                                  retry_back_off:
+                                    base_interval: 0.025s
+                                    max_interval: 0.25s
                             # Payments routes
                             - match:
                                 prefix: "/payments"
                               route:
                                 cluster: payments_service
-                                timeout: 10s
+                                timeout: 2s
                                 idle_timeout: 60s
                                 regex_rewrite:
                                   pattern:
@@ -64,7 +67,10 @@ data:
                                 retry_policy:
                                   retry_on: "5xx,reset,connect-failure,refused-stream"
                                   num_retries: 2
-                                  per_try_timeout: 2s
+                                  per_try_timeout: 0.2s
+                                  retry_back_off:
+                                    base_interval: 0.025s
+                                    max_interval: 0.25s
                             # Health check route
                             - match:
                                 prefix: "/healthz"
@@ -83,9 +89,9 @@ data:
           circuit_breakers:
             thresholds:
               - priority: DEFAULT
-                max_connections: 100
-                max_pending_requests: 50
-                max_requests: 100
+                max_connections: 5
+                max_pending_requests: 5
+                max_requests: 10
                 max_retries: 3
           load_assignment:
             cluster_name: api_service
@@ -129,9 +135,9 @@ data:
           circuit_breakers:
             thresholds:
               - priority: DEFAULT
-                max_connections: 100
-                max_pending_requests: 50
-                max_requests: 100
+                max_connections: 5
+                max_pending_requests: 5
+                max_requests: 10
                 max_retries: 3
           load_assignment:
             cluster_name: payments_service

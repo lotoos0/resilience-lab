@@ -15,7 +15,9 @@ api:
 payments:
   replicaCount: 1
   image:
-    tag: dev
+    repository: resilience-lab-payments
+    tag: local
+    pullPolicy: IfNotPresent
   env:
     - name: LOG_LEVEL
       value: DEBUG

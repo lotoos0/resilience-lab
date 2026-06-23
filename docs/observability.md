@@ -1,6 +1,23 @@
 # Observability
 
-This document describes the current v0.1.0 observability baseline for Resilience Lab.
+This page is the starting point for checking whether Resilience Lab is observable:
+what is scraped, where dashboards live, which alerts exist, and how to verify chaos
+experiments with Prometheus, Grafana, and Loki.
+
+Use it when you want to:
+
+- confirm that API and Envoy metrics are scraped by Prometheus;
+- inspect service logs in Loki;
+- verify Grafana dashboards after deployment;
+- observe pod kill and latency injection experiments;
+- troubleshoot missing targets, dashboards, or alerts.
+
+## How to read this document
+
+- Start with **[Current Scope](#current-scope)** to see what observability exists today.
+- Use **[Quick Verification](#quick-verification)** after deploying or upgrading the stack.
+- Use **[Chaos Observability](#chaos-observability)** while running pod kill or latency injection tests.
+- Use **[Troubleshooting](#troubleshooting)** when targets, alerts, or dashboards are missing.
 
 ## Current Scope
 
@@ -15,6 +32,7 @@ Implemented:
 - Basic Prometheus alert rules for v0.1.0
 - Grafana system overview dashboard JSON
 - Loki + Promtail log aggregation with a Loki datasource in Grafana (issue `#38`)
+- Chaos observability queries: pod kill recovery and latency injection monitoring (issue `#42`)
 
 Planned in separate issues:
 
@@ -143,7 +161,7 @@ so it can be parsed and filtered by tenant:
 > won't see the `tenant=`/`status=` fields — unwrap with `| json | line_format
 > "{{.log}}"` first, as in the "Parsing JSON container log lines" example above.
 
-### Verification
+### Loki verification
 
 Open Grafana → **Explore**, select the **Loki** datasource, and run the queries above.
 Use the label browser to confirm `app`, `namespace`, and `container` values match the
@@ -162,7 +180,7 @@ as code, the same way `kube-prometheus-stack` loads its bundled dashboards and
   picks up the labeled ConfigMap and loads the dashboard into Grafana automatically
   — no manual import needed.
 
-Verification:
+Dashboard verification:
 
 ```bash
 kubectl get configmap -n resilience-lab -l grafana_dashboard=1
@@ -182,12 +200,15 @@ provisioned the same way, via `deploy/helm/dashboards/resilience.json` and
 - Envoy Retries — rate 5m (`envoy:retries:rate5m`, by `envoy_cluster_name`)
 - Outlier Ejections — rate 5m (`envoy:outlier_ejections:rate5m`, by `envoy_cluster_name`)
 - Rate Limit Denials / 429 — rate 5m (`api:rate_limit_denied:rate5m`, by `tenant`)
+- Envoy Bulkhead Overflow — rate 5m (`envoy:bulkhead_overflow:rate5m`, by `envoy_cluster_name`)
 
-The retry/ejection/429 panels read from the recording rules above rather than
-the raw `*_total` counters, so they show smoothed per-second rates instead of
-ever-growing totals.
+The retry/ejection/429/bulkhead panels read from the recording rules above
+rather than the raw `*_total` counters, so they show smoothed per-second
+rates instead of ever-growing totals.
 
 ![Resilience Lab – Traffic & Latency dashboard](img/resilience-dashboard.png)
+
+![Resilience Lab – System Overview dashboard](img/grafana-dashboard-overview.png)
 
 ## Prometheus Configuration
 
@@ -215,6 +236,7 @@ The project currently defines recording rules for:
 - Envoy active upstream connections
 - Envoy retry rate (`envoy:retries:rate5m`)
 - Envoy outlier ejection rate (`envoy:outlier_ejections:rate5m`)
+- Envoy bulkhead overflow rate (`envoy:bulkhead_overflow:rate5m`)
 - API request rate
 - API 5xx error rate
 - Rate-limit allowed/denied request rates
@@ -228,105 +250,146 @@ The v0.1.0 alert baseline is intentionally small and practical.
 
 ### HighErrorRate
 
-Fires when more than 5% of API requests return 5xx responses for 5 minutes while the API is receiving traffic.
-
-Purpose:
-
-- catch application regressions;
-- catch upstream dependency failures surfaced through the API;
-- provide a simple demo-friendly error-rate alert.
+Fires when more than 5% of API requests return 5xx for 5 consecutive minutes while
+the API is receiving traffic. Catches application regressions and upstream dependency
+failures (e.g. Payments returning 500s) before they become user-visible outages.
 
 ### APIDown
 
-Fires when Prometheus cannot scrape the API target for 1 minute, or when the API target is not discovered at all.
-
-Purpose:
-
-- catch API pod/service/scrape failures;
-- validate that API monitoring is not silently broken.
+Fires when Prometheus cannot scrape the API target for 1 minute, or when the target
+is not discovered at all. Useful for catching silent scrape failures — if this fires
+in a healthy cluster, check ServiceMonitor selectors and NetworkPolicy.
 
 ### PrometheusTargetDown
 
-Fires when any target in the `resilience-lab` namespace is down for more than 2 minutes, or when no target from the `resilience-lab` namespace is discovered at all.
+Fires when any target in the `resilience-lab` namespace is unreachable for more than
+2 minutes, or when no target is discovered at all. Broader than `APIDown` — covers
+Envoy and any future monitored service in the namespace.
 
-Purpose:
+## Quick Verification
 
-- catch scrape degradation across the lab;
-- detect failures in API, Envoy, or future monitored targets.
+Run this after deploying or upgrading the stack to confirm everything is wired correctly.
 
-## Verification
-
-Apply the rules:
-
-```bash
-kubectl apply -f deploy/prometheus/rules.yaml
-```
-
-Check the rule object:
-
-```bash
-kubectl get prometheusrule -n monitoring
-kubectl describe prometheusrule resilience-lab-rules -n monitoring
-```
-
-Port-forward Prometheus:
+### Prometheus
 
 ```bash
 kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
 ```
 
-Open:
+Open `http://localhost:9090/targets` — both API and Envoy targets should be `UP`.
+Open `http://localhost:9090/alerts` — rules should be visible, none `FIRING` in a healthy cluster.
 
-```text
-http://localhost:9090/targets
-http://localhost:9090/alerts
-```
-
-Expected healthy state:
-
-- API target is `UP`;
-- Envoy target is `UP`;
-- alert rules are visible;
-- alerts are not `FIRING` in a healthy environment.
-
-If Prometheus shows only `kube-system` and `monitoring` targets, and no `resilience-lab` targets, check ServiceMonitor discovery:
+If `resilience-lab` targets are missing (only `kube-system` / `monitoring` appear), the
+ServiceMonitor selectors likely don't match. Check with:
 
 ```bash
-kubectl get namespace --show-labels
 kubectl get servicemonitor -A
 kubectl get svc -n resilience-lab --show-labels
-kubectl get endpoints -n resilience-lab
 kubectl describe servicemonitor -n monitoring resilience-lab-api-metrics
-kubectl describe servicemonitor -n monitoring envoy-proxy-metrics
 ```
 
-The expected setup is:
+Apply or re-apply the rules if needed:
 
-- `resilience-lab-api-metrics` exists in the `monitoring` namespace;
-- `envoy-proxy-metrics` exists in the `monitoring` namespace;
-- the API Service labels match `app.kubernetes.io/name: api`;
-- the Envoy Service labels match `app: envoy-proxy`;
-- the `resilience-lab` namespace exists and contains the API and Envoy services.
+```bash
+kubectl apply -f deploy/prometheus/rules.yaml
+kubectl get prometheusrule -n monitoring
+```
 
-## Optional APIDown Test
+### Loki
 
-Scale API down:
+Open Grafana → **Explore** → Loki datasource and run `{app="api"}`. If no logs appear,
+check Promtail pods in `monitoring` and verify the `resilience-lab` namespace labels.
+
+### Grafana dashboards
+
+```bash
+curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/api/search
+```
+
+Should return both `resilience-lab-0-system-overview` and `resilience-core`.
+
+### Optional: trigger APIDown alert
 
 ```bash
 kubectl scale deployment -n resilience-lab resilience-lab-api --replicas=0
-```
-
-Wait 1-3 minutes, then check:
-
-```text
-http://localhost:9090/alerts
-```
-
-Restore API:
-
-```bash
+# wait 1-3 min, check http://localhost:9090/alerts
 kubectl scale deployment -n resilience-lab resilience-lab-api --replicas=2
 ```
+
+## Chaos Observability
+
+PromQL queries for observing the system during chaos experiments. Use these in
+Prometheus UI (`http://localhost:9090`) or in Grafana → **Explore** with the
+Prometheus datasource selected.
+
+Full runbooks: [`docs/runbooks/chaos-pod-kill.md`](runbooks/chaos-pod-kill.md),
+[`docs/runbooks/chaos-latency-injection.md`](runbooks/chaos-latency-injection.md),
+[`docs/runbooks/rollback-vs-recover.md`](runbooks/rollback-vs-recover.md).
+
+### Pod Kill — Recovery Monitoring
+
+```promql
+# Available replicas — drops to 0 on kill, recovers in ~15s
+kube_deployment_status_replicas_available{deployment="resilience-lab-payments"}
+
+# Pod restart counter — increments after each kill
+kube_pod_container_status_restarts_total{namespace="resilience-lab", container="payments"}
+
+# Envoy outlier ejections — should stay 0 during fast pod recovery
+envoy:outlier_ejections:rate5m
+```
+
+Verify no alerts fired during the test:
+
+```promql
+ALERTS{alertname=~"HighErrorRate|APIDown|PrometheusTargetDown", alertstate="firing"}
+```
+
+Expected result: `no data` (empty vector).
+
+### Latency Injection — Monitoring 300ms netem Delay
+
+```promql
+# Envoy p95 upstream latency — rises to ~300ms+ during injection
+envoy:upstream_rq_time_p95:rate5m
+
+# API 5xx error rate — should remain low (Envoy retries absorb slow responses)
+api:http_5xx:rate5m
+
+# Envoy retry rate — rises when upstream latency triggers timeout retries
+envoy:retries:rate5m
+```
+
+LogQL to correlate payments logs during injection:
+
+```logql
+{app="payments"} | json | line_format "{{.log}}"
+```
+
+### Grafana Panels to Watch
+
+Open the **"Resilience Lab – Traffic & Latency"** dashboard during any chaos
+experiment and monitor:
+
+| Panel | Expected behaviour during chaos |
+|-------|--------------------------------|
+| p95 Latency | Spikes to 300ms+ during latency injection; normal during pod kill |
+| Envoy Retries | Rises during latency injection if timeout triggers retries |
+| Outlier Ejections | Should remain 0 (payments recovers before ejection threshold) |
+| HTTP Status Codes | No spike in 5xx during pod kill (Envoy routes around dead pod) |
+
+### Evidence Screenshots
+
+Pod kill — dip in HTTP Status Codes and RPS at ~13:47, auto-recovery within ~15s,
+no 5xx errors, Retries and Outlier Ejections remain at 0:
+
+![Chaos pod kill — Traffic & Latency dashboard](img/chaos-pod-kill-grafana.png)
+
+Latency injection (300ms netem) — RPS and 2xx throughput drop at ~14:00 as
+payments → Redis connections accumulate delay; p95 panel did not capture the spike
+because the `rate5m` recording rule window outlasted the injection duration:
+
+![Chaos latency injection — Traffic & Latency dashboard](img/chaos-latency-grafana.png)
 
 ## Troubleshooting
 

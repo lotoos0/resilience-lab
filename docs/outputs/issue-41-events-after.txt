@@ -1,0 +1,30 @@
+2m42s       Normal    SandboxChanged                 pod/resilience-lab-api-b4598b7ff-mlxtz                Pod sandbox changed, it will be killed and re-created.
+2m42s       Normal    Started                        pod/resilience-lab-payments-7f78b8764-5fksw           Container started
+2m42s       Normal    Pulled                         pod/envoy-proxy-64b846d54f-lzsh7                      Container image "envoyproxy/envoy:v1.28-latest" already present on machine and can be accessed by the pod
+2m42s       Normal    Created                        pod/envoy-proxy-64b846d54f-lzsh7                      Container created
+2m42s       Normal    Started                        pod/resilience-lab-api-b4598b7ff-mlxtz                Container started
+2m42s       Normal    Started                        pod/resilience-lab-api-b4598b7ff-8tnzt                Container started
+2m42s       Normal    Created                        pod/resilience-lab-api-b4598b7ff-8tnzt                Container created
+2m42s       Normal    SandboxChanged                 pod/envoy-proxy-64b846d54f-lzsh7                      Pod sandbox changed, it will be killed and re-created.
+2m42s       Normal    SandboxChanged                 pod/resilience-lab-api-b4598b7ff-8tnzt                Pod sandbox changed, it will be killed and re-created.
+2m42s       Normal    Started                        pod/redis-84bbc776-c9mxr                              Container started
+2m42s       Normal    Created                        pod/redis-84bbc776-c9mxr                              Container created
+2m42s       Normal    Created                        pod/resilience-lab-payments-7f78b8764-5fksw           Container created
+2m42s       Normal    SandboxChanged                 pod/redis-84bbc776-c9mxr                              Pod sandbox changed, it will be killed and re-created.
+2m42s       Normal    SandboxChanged                 pod/resilience-lab-payments-7f78b8764-5fksw           Pod sandbox changed, it will be killed and re-created.
+2m42s       Normal    Pulled                         pod/resilience-lab-payments-7f78b8764-5fksw           Container image "ghcr.io/lotoos0/resilience-lab-payments:dev" already present on machine and can be accessed by the pod
+2m35s       Warning   Unhealthy                      pod/envoy-proxy-64b846d54f-lzsh7                      Readiness probe failed: HTTP probe failed with statuscode: 503
+2m16s       Warning   Unhealthy                      pod/resilience-lab-api-b4598b7ff-mlxtz                Startup probe failed: HTTP probe failed with statuscode: 500
+2m11s       Warning   Unhealthy                      pod/resilience-lab-api-b4598b7ff-8tnzt                Startup probe failed: HTTP probe failed with statuscode: 500
+40s         Warning   FailedComputeMetricsReplicas   horizontalpodautoscaler/resilience-lab-api-hpa        invalid metrics (2 invalid out of 2), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+40s         Warning   FailedGetResourceMetric        horizontalpodautoscaler/resilience-lab-payments-hpa   failed to get memory utilization: unable to get metrics for resource memory: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+40s         Warning   FailedComputeMetricsReplicas   horizontalpodautoscaler/resilience-lab-payments-hpa   invalid metrics (2 invalid out of 2), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+40s         Warning   FailedGetResourceMetric        horizontalpodautoscaler/resilience-lab-api-hpa        failed to get memory utilization: unable to get metrics for resource memory: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+27s         Normal    Scheduled                      pod/resilience-lab-payments-7f78b8764-btdh7           Successfully assigned resilience-lab/resilience-lab-payments-7f78b8764-btdh7 to minikube
+27s         Normal    SuccessfulCreate               replicaset/resilience-lab-payments-7f78b8764          Created pod: resilience-lab-payments-7f78b8764-btdh7
+27s         Normal    Killing                        pod/resilience-lab-payments-7f78b8764-5fksw           Stopping container payments
+26s         Normal    Pulled                         pod/resilience-lab-payments-7f78b8764-btdh7           Container image "ghcr.io/lotoos0/resilience-lab-payments:dev" already present on machine and can be accessed by the pod
+26s         Normal    Created                        pod/resilience-lab-payments-7f78b8764-btdh7           Container created
+26s         Normal    Started                        pod/resilience-lab-payments-7f78b8764-btdh7           Container started
+25s         Warning   FailedGetResourceMetric        horizontalpodautoscaler/resilience-lab-payments-hpa   failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+25s         Warning   FailedGetResourceMetric        horizontalpodautoscaler/resilience-lab-api-hpa        failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)

@@ -145,7 +145,7 @@ independently deployable. Also: the service I deliberately break in chaos tests.
 - `SLOW_MODE=1` → sleeps `2s` before responding (simulates latency spike)
 
 These two flags are how I exercise Envoy's retry and circuit breaker from a known,
-repeatable starting point. See [chaos runbooks](RUNBOOKS.md).
+repeatable starting point. See [chaos runbooks](runbooks/README.md).
 
 **Storage**: Currently in-memory (`dict`). Data does not survive restarts. This is
 intentional for v0.1.0 — the focus was on the infrastructure layer, not persistence.
@@ -247,28 +247,12 @@ values for features I'd explicitly turn off anyway.
 
 ### PostgreSQL
 
-Helm dependency configured, but the services don't use it yet. The schema below
-is the target for the next iteration:
+Not used. The driver (`psycopg2-binary`) is in `requirements.txt` and `DATABASE_URL`
+appears in the Helm values, but no service code connects to a database. The PostgreSQL
+subchart in `Chart.yaml` is a placeholder for the next iteration.
 
-```sql
-CREATE TABLE payments (
-    payment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    amount     DECIMAL(10, 2) NOT NULL CHECK (amount > 0),
-    currency   CHAR(3)        NOT NULL,
-    tenant_id  VARCHAR(255)   NOT NULL,
-    status     VARCHAR(50)    NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMP      NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP      NOT NULL DEFAULT NOW(),
-    metadata   JSONB
-);
-
-CREATE INDEX idx_payments_tenant_id  ON payments(tenant_id);
-CREATE INDEX idx_payments_status     ON payments(status);
-CREATE INDEX idx_payments_created_at ON payments(created_at DESC);
-```
-
-Current state: `payments_store: Dict[str, Dict[str, Any]]` in Payments service.
-Survives until the pod restarts. See [ADR-004](#adr-004-in-memory-storage-in-v010).
+Current state: `payments_store: Dict[str, Dict[str, Any]]` in Payments service —
+an in-memory dict that lives until the pod restarts. See [ADR-004](#adr-004-in-memory-storage-in-v010).
 
 ---
 
@@ -480,12 +464,11 @@ would have been real work that delayed the things I actually wanted to learn.
 **Consequences**:
 - Payments data is lost on every pod restart or scale event
 - This is fine for chaos testing (I don't care about specific payment IDs)
-- The PostgreSQL schema is designed and the Helm dependency is wired — migration is
-  the first task in the next iteration
+- The PostgreSQL Helm dependency is wired and the driver is installed — the connection
+  code is the only missing piece
 
-**Migration**: Add SQLAlchemy async, run Alembic migration creating the `payments`
-table (schema in [Data Layer](#data-layer)), switch `payments_store` dict to
-repository pattern. The API surface doesn't change.
+**Migration plan**: Add SQLAlchemy async + Alembic, create the `payments` table,
+switch `payments_store` dict to a repository pattern. The API surface doesn't change.
 
 ---
 

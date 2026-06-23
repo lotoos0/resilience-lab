@@ -1,690 +1,271 @@
 # Contributing to Resilience Lab
 
-Thank you for your interest in contributing to Resilience Lab! This document provides guidelines and instructions for contributing to the project.
+This is a solo learning project, but it's structured as if it were a real team repo —
+proper CI, code review, runbooks, the works. If you're reading this because you want
+to contribute: welcome, and thanks for taking the time.
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Code of Conduct](#-code-of-conduct)
-- [How to Contribute](#-how-to-contribute)
-- [Reporting Issues](#-reporting-issues)
-- [Creating Pull Requests](#-creating-pull-requests)
-- [Coding Standards](#-coding-standards)
-- [Commit Message Format](#-commit-message-format)
-- [Branching Workflow](#-branching-workflow)
-- [Development Setup](#-development-setup)
-- [Testing Requirements](#-testing-requirements)
-- [Milestone Overview](#-milestone-overview)
-- [Release Flow](#-release-flow)
-
----
-
-## 📜 Code of Conduct
-
-This project adheres to a Code of Conduct that all contributors are expected to follow. Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before contributing.
+- [Code of Conduct](#code-of-conduct)
+- [Reporting Issues](#reporting-issues)
+- [Pull Requests](#pull-requests)
+- [Commit Format](#commit-format)
+- [Branching](#branching)
+- [Coding Standards](#coding-standards)
+- [Testing](#testing)
+- [Development Setup](#development-setup)
+- [Milestone Overview](#milestone-overview)
+- [Release Flow](#release-flow)
 
 ---
 
-## 🤝 How to Contribute
+## Code of Conduct
 
-There are many ways to contribute to Resilience Lab:
-
-1. **Report bugs** - Found an issue? Let us know!
-2. **Suggest features** - Have ideas for improvements? We'd love to hear them!
-3. **Write code** - Fix bugs or implement new features
-4. **Improve documentation** - Help make our docs better
-5. **Write tests** - Increase test coverage
-6. **Review pull requests** - Help review code from other contributors
+Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Short version: be respectful,
+be constructive, don't be a jerk.
 
 ---
 
-## 🐛 Reporting Issues
+## Reporting Issues
 
-### Before Creating an Issue
+Search open issues first — the problem might already be known or in progress.
 
-1. **Search existing issues** - Check if the issue already exists
-2. **Check documentation** - Review `docs/` directory for solutions
-3. **Test with latest version** - Ensure you're running the latest code
+**Bug reports** should include:
+- What you did, what you expected, what actually happened
+- Environment (OS, Docker version, Python version, branch)
+- Relevant logs (paste them in a code block, not as screenshots)
 
-### Creating a Bug Report
-
-When creating a bug report, include:
-
-**Title Format**: `[BUG] Short description`
-
-**Issue Template**:
-
-```markdown
-## Bug Description
-Clear and concise description of the bug.
-
-## Steps to Reproduce
-1. Step one
-2. Step two
-3. Step three
-
-## Expected Behavior
-What should happen
-
-## Actual Behavior
-What actually happens
-
-## Environment
-- OS: [e.g., Ubuntu 22.04, macOS 13, Windows 11]
-- Docker version: [e.g., 24.0.5]
-- Python version: [e.g., 3.11.5]
-- Branch: [e.g., develop, main]
-
-## Logs
-```
-Paste relevant logs here
-```
-
-## Additional Context
-Any other relevant information
-```
-
-### Feature Requests
-
-**Title Format**: `[FEATURE] Short description`
-
-**Include**:
-- Problem statement - What problem does this solve?
-- Proposed solution - How should it work?
-- Alternatives considered - Other approaches you've thought about
-- Related milestone - Which milestone (M0-M4) does this fit?
+**Feature requests** should explain the problem being solved, not just the solution.
+If it fits a milestone, mention which one.
 
 ---
 
-## 🔀 Creating Pull Requests
+## Pull Requests
 
-### Before Creating a PR
+### Before you open a PR
 
-1. **Create an issue first** (for significant changes)
-2. **Fork and clone** the repository
-3. **Create a feature branch** from `develop`
-4. **Follow coding standards** (see below)
-5. **Write tests** for new functionality
-6. **Run tests locally** - Ensure all tests pass
-7. **Run linting** - Code must pass `make lint`
-8. **Update documentation** - If applicable
+1. Branch from `develop`, not `main`
+2. Run `make lint` and `make test-unit` — CI will reject failures
+3. If it's a non-trivial change, open an issue first so we can discuss scope
+4. Update docs if your change affects behavior, deployment, or observability
 
-### PR Workflow
+### PR workflow
 
-1. **Create feature branch**:
-   ```bash
-   git checkout develop
-   git pull origin develop
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **Make changes**:
-   ```bash
-   # Edit code...
-   make test-unit      # Fast feedback
-   make lint           # Check code quality
-   ```
-
-3. **Commit changes** (follow commit format below):
-   ```bash
-   git add .
-   git commit -m "feat: your feature description"
-   ```
-
-4. **Push to your fork**:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-5. **Create Pull Request**:
-   - Target branch: `develop`
-   - Fill out PR template
-   - Link related issues
-
-### PR Title Format
-
-```
-type: short description
+```bash
+git checkout develop && git pull origin develop
+git checkout -b issue-<number>-<short-description>
+# ... make changes ...
+make lint && make test-unit
+git push origin issue-<number>-<short-description>
 ```
 
-**Types**:
-- `feat` - New feature
-- `fix` - Bug fix
-- `docs` - Documentation changes
-- `test` - Adding or updating tests
-- `refactor` - Code refactoring
-- `ci` - CI/CD changes
-- `chore` - Maintenance tasks
+Open the PR against `develop`. Link the issue with `closes #N` in the description.
 
-**Examples**:
-- `feat: add payment validation endpoint`
-- `fix: correct healthcheck timeout`
-- `docs: update deployment guide`
+### Self-merge is fine if
 
-### PR Description Template
+- CI is green (lint + unit + integration + build)
+- You tested the change locally
+- Docs are updated where relevant
+- No breaking changes without a note in the PR body
 
-```markdown
-## Description
-Brief description of changes
+### PR description
 
-## Related Issue
-Fixes #123
-Related to #456
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-- [ ] Unit tests pass (`make test-unit`)
-- [ ] Integration tests pass (`make test-integration`)
-- [ ] Linting passes (`make lint`)
-- [ ] Manual testing completed
-
-## Checklist
-- [ ] Code follows project style guidelines
-- [ ] Self-review completed
-- [ ] Comments added for complex code
-- [ ] Documentation updated
-- [ ] No new warnings generated
-- [ ] Tests added/updated
-- [ ] All tests passing
-
-## Screenshots (if applicable)
-Add screenshots for UI changes
-```
-
-### PR Review Process
-
-1. **Automated checks** - CI must pass (lint, test, build)
-2. **Code review** - At least one approval (for collaborative projects)
-3. **Self-merge allowed** if:
-   - CI is ✅ green
-   - Code is tested locally
-   - Documentation updated when relevant
-   - No breaking changes
+Keep it short and honest. What changed, why, how to verify it. If there's a screenshot
+or Grafana graph that shows it working — add it. Evidence from actual runs is always
+better than "it should work because the code looks right."
 
 ---
 
-## 📝 Coding Standards
+## Commit Format
 
-### Python Style Guide
+This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 
-Follow **PEP 8** enforced by `ruff`:
+```
+type(scope): short description
 
-**Good Examples**:
+Optional body — use it when the why isn't obvious from the what.
+
+Closes #N
+```
+
+**Types:**
+
+| Type | When to use |
+|------|-------------|
+| `feat` | New functionality |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `test` | Adding or updating tests |
+| `refactor` | Code change with no behavior change |
+| `ci` | CI/CD pipeline changes |
+| `chore` | Maintenance (deps, config, cleanup) |
+| `security` | CVE patches, security hardening |
+| `perf` | Performance improvements |
+
+**Rules:**
+- Imperative mood: `add`, not `added` or `adds`
+- Lowercase first letter, no period at the end
+- Keep the subject under 72 characters
+- Scope is optional but useful: `feat(chaos):`, `fix(api):`, `docs(runbooks):`
+
+**Examples:**
+
+```
+feat(chaos): add pod kill chaos test and rollback-vs-recover runbook
+fix(api): correct return type annotation for GET /
+docs(observability): add chaos PromQL queries and finalize M3 DoD
+security: bump starlette to 1.3.1 for CVE-2026-48818
+```
+
+---
+
+## Branching
+
+Light GitFlow: `develop` is the daily working branch, `main` holds tagged releases only.
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable releases only — tagged, never force-pushed |
+| `develop` | Active development, integration target for PRs |
+| `issue-<N>-<description>` | Feature or fix branch (preferred naming) |
+| `hotfix/<description>` | Urgent fix directly targeting main |
+
+Branch off `develop`, PR back to `develop`. Main gets updated at release time only.
+
+---
+
+## Coding Standards
+
+### Python
+
+PEP 8, enforced by `ruff`. If `make lint` passes, you're good. The main things that
+matter in practice:
+
+- Type hints on all function signatures
+- Meaningful names — `tenant_id` over `tid`, `payment_response` over `resp`
+- No bare `except:` — catch what you expect and let the rest bubble up
+- Don't log sensitive data (card numbers, tokens, passwords)
 
 ```python
-from typing import Dict, Any
-from pydantic import BaseModel, Field
-
-def process_payment(amount: float, currency: str) -> Dict[str, Any]:
-    """Process a payment transaction.
-
-    Args:
-        amount: Payment amount (must be > 0)
-        currency: ISO 4217 currency code
-
-    Returns:
-        Payment confirmation dict
-
-    Raises:
-        ValueError: If amount is not positive
-    """
-    if amount <= 0:
-        raise ValueError("Amount must be positive")
-
-    return {
-        "payment_id": generate_id(),
-        "amount": amount,
-        "currency": currency,
-        "status": "completed"
-    }
-```
-
-**Bad Examples**:
-
-```python
-# ❌ No type hints
-def process_payment(amt, curr):
-    pass
-
-# ❌ Poor naming
-def pp(a, c):
-    pass
-
-# ❌ No docstring
-def process_payment(amount: float, currency: str):
-    pass
-```
-
-### Type Hints
-
-**Always use type hints**:
-
-```python
-from typing import List, Dict, Optional, Any
-
-# Good ✅
-def get_payments(
-    tenant_id: str,
-    limit: int = 10,
-    offset: int = 0
-) -> List[Dict[str, Any]]:
-    pass
-
-# Bad ❌
-def get_payments(tenant_id, limit=10, offset=0):
-    pass
-```
-
-### Pydantic Models
-
-Use Pydantic for request/response validation:
-
-```python
-from pydantic import BaseModel, Field
-
-class PaymentRequest(BaseModel):
-    amount: float = Field(gt=0, description="Amount must be > 0")
-    currency: str = Field(pattern="^[A-Z]{3}$", description="ISO 4217 code")
-    tenant_id: str = "default"
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "amount": 100.0,
-                "currency": "USD"
-            }
-        }
-```
-
-### Error Handling
-
-```python
-from fastapi import HTTPException, status
-
-# Good ✅
-async def get_payment(payment_id: str):
+# Good
+async def get_payment(payment_id: str) -> dict:
     payment = await repository.get(payment_id)
     if not payment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Payment {payment_id} not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Payment {payment_id} not found")
     return payment
 
-# Bad ❌
-async def get_payment(payment_id: str):
-    return repository.get(payment_id)  # No error handling
-```
-
-### Logging
-
-```python
-import logging
-
-logger = logging.getLogger(__name__)
-
-# Use structured logging
-logger.info(
-    "Payment processed",
-    extra={
-        "payment_id": payment_id,
-        "amount": amount,
-        "currency": currency
-    }
-)
-
-# Never log sensitive data ❌
-logger.info(f"Credit card: {card_number}")  # ❌ NEVER
+# Not great — no error handling, no return type
+async def get_payment(payment_id):
+    return repository.get(payment_id)
 ```
 
 ### Docstrings
 
-Use **Google style** docstrings:
+Short public functions don't need docstrings if the name and types tell the story.
+Longer or tricky functions do — keep them concise, focus on the non-obvious parts.
 
-```python
-def calculate_total(items: List[Item]) -> Decimal:
-    """Calculate total price for items.
+### Comments
 
-    Args:
-        items: List of items to calculate
+Comments should explain *why*, not *what*. If you need to explain what the code does,
+the code probably needs to be clearer.
 
-    Returns:
-        Total price as Decimal
+---
 
-    Raises:
-        ValueError: If items list is empty
+## Testing
 
-    Example:
-        >>> items = [Item(price=10), Item(price=20)]
-        >>> calculate_total(items)
-        Decimal('30.00')
-    """
-    if not items:
-        raise ValueError("Items list cannot be empty")
-    return sum(item.price for item in items)
-```
+### Coverage targets
 
-### Code Quality Checks
+- Minimum: 80%
+- Target: 90%
+- Critical paths (auth, payments, rate limiting): 100%
 
-Before committing, run:
+### Test types
+
+**Unit tests** — no external services required, fast feedback:
 
 ```bash
-# Linting
-make lint
-
-# Auto-fix issues
-ruff check --fix services/
-
-# Unit tests
 make test-unit
-
-# All tests (requires services running)
-make dev
-make test
 ```
 
----
-
-## 💬 Commit Message Format
-
-### Standard Format
-
-```
-type: short description
-
-Optional longer description explaining the change in more detail.
-
-Fixes #123
-Related to #456
-```
-
-### Components
-
-1. **type** - Type of change:
-   - `feat` - New feature
-   - `fix` - Bug fix
-   - `docs` - Documentation only
-   - `test` - Adding/updating tests
-   - `refactor` - Code refactoring
-   - `ci` - CI/CD changes
-   - `chore` - Maintenance tasks
-   - `perf` - Performance improvements
-   - `style` - Code style changes (formatting)
-
-2. **description** - Short summary (50 chars or less)
-   - Use imperative mood: "add" not "added"
-   - Don't capitalize first letter (lowercase)
-   - No period at the end
-
-### Examples
-
-**Good commits**:
+**Integration tests** — require running services (`make dev` first):
 
 ```bash
-feat: add payment processing endpoint
-fix: correct validation error in payment request
-docs: update deployment guide with K8s instructions
-test: add integration tests for payment flow
-ci: add caching to GitHub Actions workflow
-refactor: extract payment validation to separate module
-```
-
-**Bad commits**:
-
-```bash
-# ❌ No type
-Add payment endpoint
-
-# ❌ Too vague
-fix: fix bug
-
-# ❌ Past tense
-feat: added payment endpoint
-
-# ❌ Capitalized
-feat: Add payment endpoint
-
-# ❌ Period at end
-feat: add payment endpoint.
-```
-
-### Multi-line Commit Messages
-
-For complex changes, use detailed body:
-
-```bash
-git commit -m "feat: add circuit breaker pattern
-
-Implement circuit breaker for external payment gateway calls.
-Uses half-open state for recovery testing.
-Configurable thresholds via environment variables.
-
-Fixes #123
-Related to #456"
-```
-
----
-
-## 🧭 Branching Workflow
-
-This project follows a **light GitFlow model**:
-
-### Branch Types
-
-- `main` → Stable, production-ready releases only (tagged)
-- `develop` → Active development branch (daily work and integration)
-- `feature/<name>` → New functionality or task for current milestone
-- `fix/<name>` → Bug fixes
-- `test/<name>` → Experimental changes or testing
-- `docs/<name>` → Documentation improvements
-- `release/<version>` → Final polish and testing before release
-- `hotfix/<name>` → Quick fix for urgent production issues
-
-### Branch Naming
-
-**Format**: `type/short-description`
-
-**Examples**:
-```
-feature/helm-charts
-feature/payment-validation
-fix/healthcheck-timeout
-test/ci-pipeline
-docs/deployment-guide
-release/v0.1.0
-hotfix/missing-envoy-config
-```
-
-### Workflow
-
-```
-main (production)
-  └── develop (integration)
-       ├── feature/payment-validation
-       ├── feature/helm-charts
-       ├── fix/healthcheck-bug
-       └── docs/api-guide
-```
-
----
-
-## 💻 Development Setup
-
-### Prerequisites
-
-- Docker 24+
-- Docker Compose v2+
-- Python 3.11+
-- Make
-
-### Setup Steps
-
-1. **Fork and clone**:
-   ```bash
-   git clone https://github.com/YOUR-USERNAME/resilience-lab.git
-   cd resilience-lab
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   make install
-   ```
-
-3. **Start services**:
-   ```bash
-   make dev
-   ```
-
-4. **Verify setup**:
-   ```bash
-   make ps
-   make test
-   ```
-
-For detailed setup instructions, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
----
-
-## 🧪 Testing Requirements
-
-### Test Coverage
-
-- **Minimum**: 80% code coverage
-- **Target**: 90% code coverage
-- **Critical paths**: 100% coverage
-
-### Writing Tests
-
-**Unit Tests** (no external dependencies):
-
-```python
-# tests/test_payments.py
-def test_payment_validation():
-    """Test payment amount validation."""
-    with pytest.raises(ValueError):
-        PaymentRequest(amount=-50, currency="USD")
-```
-
-**Integration Tests** (require running services):
-
-```python
-# tests/test_integration.py
-import pytest
-
-pytestmark = pytest.mark.integration
-
-def test_payment_flow():
-    """Test complete payment processing flow."""
-    response = requests.post(
-        "http://localhost:8001/process",
-        json={"amount": 100, "currency": "USD"}
-    )
-    assert response.status_code == 201
-```
-
-### Running Tests
-
-```bash
-# All tests (requires services)
-make dev
-make test
-
-# Unit tests only (fast)
-make test-unit
-
-# Integration tests only
 make dev
 make test-integration
+```
 
-# With coverage
+**All tests with coverage:**
+
+```bash
+make dev
+make test
 pytest --cov=services --cov-report=html
 ```
 
-### CI Requirements
+### CI requirements
 
-All PRs must pass:
+PRs must pass all of these before merge:
 
-1. **Lint** - `make lint` (ruff)
-2. **Unit tests** - `make test-unit`
-3. **Integration tests** - `make test-integration`
-4. **Build** - Docker images build successfully
-
----
-
-## 🧩 Milestone Overview
-
-| Milestone | Focus                      | Dates    | Goal                                                |
-| --------- | -------------------------- | -------- | --------------------------------------------------- |
-| **M0**    | Bootstrap                  | 28–31.10 | Repo init, API + Payments + Compose                 |
-| **M1**    | Core + CI/CD               | 17–25.11 | Helm deploy, atomic CI/CD, security baseline        |
-| **M2**    | Networking & Health        | 26–30.11 | Traefik, Envoy, HPA, PDB, NetPol                    |
-| **M3**    | Resilience + Observability | 01–15.12 | Rate-limit, bulkhead, Prometheus, Grafana, Loki     |
-| **M4**    | Security + Chaos + Release | 16–31.12 | Backup/restore, chaos tests, polish, release v0.1.0 |
-
-Each milestone has a Definition of Done (DoD) tracked through commits and GitHub issues.
-
-See [README.md](README.md#-roadmap) for detailed roadmap.
+1. `make lint` — ruff
+2. `make test-unit`
+3. `make test-integration`
+4. Docker build — images must build cleanly
 
 ---
 
-## 🚀 Release Flow
+## Development Setup
 
-1. **Create release branch**:
-   ```bash
-   git checkout develop
-   git pull origin develop
-   git checkout -b release/v0.1.0
-   ```
+Prerequisites: Docker 24+, Docker Compose v2+, Python 3.11+, Make.
 
-2. **Finalize release**:
-   - Update version numbers
-   - Update CHANGELOG.md
-   - Update documentation
-   - Final testing
+```bash
+git clone https://github.com/lotoos0/resilience-lab.git
+cd resilience-lab
+make install   # install dev dependencies
+make dev       # start all services via Docker Compose
+make test      # verify everything works
+```
 
-3. **Merge to main**:
-   ```bash
-   git checkout main
-   git merge --no-ff release/v0.1.0
-   ```
+For Kubernetes setup and Helm deployment: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-4. **Tag release**:
-   ```bash
-   git tag -a v0.1.0 -m "Release v0.1.0"
-   git push origin main --tags
-   ```
-
-5. **Merge back to develop**:
-   ```bash
-   git checkout develop
-   git merge --no-ff main
-   git push origin develop
-   ```
+For project structure and coding conventions: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ---
 
-## 📚 Additional Resources
+## Milestone Overview
 
-- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Development Guide**: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
-- **Deployment Guide**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- **API Documentation**: http://localhost:8001/docs (when running)
-
----
-
-## 🧠 Questions or Help
-
-- **Check documentation** - See `docs/` directory
-- **Search issues** - [GitHub Issues](https://github.com/lotoos0/resilience-lab/issues)
-- **Start discussion** - [GitHub Discussions](https://github.com/lotoos0/resilience-lab/discussions)
-- **Email** - andii4444@gmail.com
+| Milestone | Focus | Status |
+|-----------|-------|--------|
+| M0 — Bootstrap | Repo, API + Payments, Compose, CI skeleton | Done |
+| M1 — Core + CI/CD | Helm, atomic CI/CD, security baseline | Done |
+| M2 — Networking & Health | Traefik, Envoy, HPA, PDB, NetworkPolicy | Done |
+| M3 — Resilience + Observability | Rate-limit, bulkhead, Prometheus, Grafana, Loki, chaos tests | Done |
+| Release | Release notes, CHANGELOG, tag v0.1.0 | In progress |
 
 ---
 
-**Thank you for contributing to Resilience Lab!** 🚀
+## Release Flow
+
+Releases go through `develop` → `main` → tagged.
+
+```bash
+# 1. Make sure develop is clean and all PRs are merged
+git checkout develop && git pull
+
+# 2. PR develop → main (via GitHub), then merge
+
+# 3. Tag on main
+git checkout main && git pull
+git tag -a v0.1.0 -m "Release v0.1.0 — Resilience Lab MVP"
+git push origin main --tags
+
+# 4. GitHub Release — attach release notes from RELEASE_NOTES_v0.1.0.md
+```
+
+CI builds and publishes versioned Docker images to GHCR on tag push automatically.
+
+---
+
+Questions? Check `docs/`, search [issues](https://github.com/lotoos0/resilience-lab/issues),
+or open a new one.

@@ -395,6 +395,19 @@ experiment and monitor:
 | Outlier Ejections | Should remain 0 (payments recovers before ejection threshold) |
 | HTTP Status Codes | No spike in 5xx during pod kill (Envoy routes around dead pod) |
 
+### Evidence Screenshots
+
+Pod kill — dip in HTTP Status Codes and RPS at ~13:47, auto-recovery within ~15s,
+no 5xx errors, Retries and Outlier Ejections remain at 0:
+
+![Chaos pod kill — Traffic & Latency dashboard](img/chaos-pod-kill-grafana.png)
+
+Latency injection (300ms netem) — RPS and 2xx throughput drop at ~14:00 as
+payments → Redis connections accumulate delay; p95 panel did not capture the spike
+because the `rate5m` recording rule window outlasted the injection duration:
+
+![Chaos latency injection — Traffic & Latency dashboard](img/chaos-latency-grafana.png)
+
 ## Troubleshooting
 
 If the API target is down, start with:

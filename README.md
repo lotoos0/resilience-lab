@@ -126,9 +126,10 @@ backed by Redis, so it works correctly across replicas.
 
 ---
 
-## Current state — preparing v0.1.0
+## Current state — v0.1.0 released
 
-M0–M3 complete. The full stack is working and validated.
+v0.1.0 is the first full Resilience Lab release. M0–M3 are complete, and the
+full stack is working and validated end to end.
 
 **Resilience primitives:**
 - ✅ Rate limiting — Redis-backed, per-tenant, k6 validated
@@ -147,7 +148,9 @@ M0–M3 complete. The full stack is working and validated.
 - ✅ Pod kill — auto-recovery ~15s, HPA/PDB behavior documented
 - ✅ Runbooks: chaos-pod-kill, chaos-latency-injection, rollback-vs-recover
 
-Next: release notes, CHANGELOG, merge to main, tag **v0.1.0**.
+Release notes: [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)
+
+Next: post-release cleanup, documentation polish, and planning the post-v0.1.0 backlog.
 
 ---
 

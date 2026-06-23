@@ -3,7 +3,7 @@
 **Created:** June 3, 2026
 **Repository:** `lotoos0/resilience-lab`
 **Scope:** Open GitHub Issues `#29`-`#57`
-**Plan source:** `docs/CURRENT_PLAN.md`
+**Plan source:** `docs/archive/v0.1.0-recovery-plan.md` (historical v0.1.0 recovery plan)
 **GitHub sync status:** Applied on June 3, 2026
 
 This document started as an offline triage pass. The first GitHub cleanup batch has now been applied.
@@ -28,7 +28,7 @@ Applied changes:
 
 ## Summary
 
-The GitHub backlog is older than `docs/CURRENT_PLAN.md`. The active v0.1.0 backlog should focus on:
+The GitHub backlog was older than the archived v0.1.0 recovery plan. At the time of this triage, the active v0.1.0 backlog focused on:
 
 - completing observability MVP: Prometheus scrape correctness, Grafana dashboards, basic alert rules, Loki/Promtail logging, and a minimal OpenTelemetry tracing baseline if scope allows;
 - finishing backup/restore and operational runbooks;

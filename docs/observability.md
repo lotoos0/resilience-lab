@@ -441,5 +441,4 @@ The original doc had three factual errors:
 
 Also added: explicit Recording Rules table listing all 14 rules by name (original listed
 11 by description, missing `resilience_lab:pod_available:count`,
-`resilience_lab:pod_total:count`, and `api:rate_limit_allowed:rate5m`). Style rewritten
-to match project doc conventions.
+`resilience_lab:pod_total:count`, and `api:rate_limit_allowed:rate5m`).

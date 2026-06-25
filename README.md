@@ -1,7 +1,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/lotoos0/resilience-lab/ci.yml?branch=main&label=CI)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
-[![CD](https://img.shields.io/github/actions/workflow/status/lotoos0/resilience-lab/cd.yml?branch=main&label=CD)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
-[![Coverage](https://img.shields.io/codecov/c/github/lotoos0/resilience-lab?label=coverage)](https://codecov.io/gh/lotoos0/resilience-lab)
+[![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
+[![CD](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
+[![codecov](https://codecov.io/gh/lotoos0/resilience-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/lotoos0/resilience-lab)
 [![Security](https://img.shields.io/badge/security-Trivy-blue)](https://github.com/lotoos0/resilience-lab/security/code-scanning)
 
 ![Resilience Lab banner](docs/img/resilience_lab_banner.gif)

@@ -1,661 +1,604 @@
-# 🚀 Deployment Guide
+# Deployment
 
-**Resilience Lab - Deployment Documentation**
+**Resilience Lab — v0.1.0**
 
-*Last updated: November 18, 2025*
+*Last updated: 2026-06-23*
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Local Deployment](#local-deployment)
-- [Kubernetes Deployment](#kubernetes-deployment)
-- [Production Considerations](#production-considerations)
-- [Monitoring & Observability](#monitoring--observability)
-- [Backup & Recovery](#backup--recovery)
+- [Two Environments, One Rule](#two-environments-one-rule)
+- [Prerequisites](#prerequisites)
+- [Local — Docker Compose](#local--docker-compose)
+- [Kubernetes — minikube + Helm](#kubernetes--minikube--helm)
+- [Images & Registry](#images--registry)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [Chaos Testing Deployment](#chaos-testing-deployment)
+- [Scripts Reference](#scripts-reference)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
-## Overview
+## Two Environments, One Rule
 
-Resilience Lab supports multiple deployment targets:
+There are two ways to run Resilience Lab, and they serve different purposes:
 
-| Environment | Status | Purpose |
-|------------|--------|---------|
-| **Local (Docker Compose)** | ✅ Available (M0) | Development, testing |
-| **Kubernetes (Helm)** | 🚧 Planned (M1) | Production, staging |
-| **Cloud (Managed K8s)** | 🔮 Future (M2+) | Production at scale |
+| Environment | Command | What starts | Use for |
+|-------------|---------|-------------|---------|
+| **Docker Compose** | `make dev` | API, Payments, PostgreSQL, Redis | Fast iteration on service code |
+| **Kubernetes (minikube)** | `make helm-up-dev` | API, Payments, Redis, HPAs/PDBs/NetworkPolicies, Grafana dashboard ConfigMaps | Integration tests, chaos work, observability |
+
+My rule: if you're touching service logic, Compose is enough. If you're running
+chaos tests or validating observability, you need Kubernetes. I designed it this
+way on purpose — `make dev` won't give you Envoy retry metrics, and that's not a
+bug I forgot to fix, it's a boundary I drew so Compose stays fast and boring.
 
 ---
 
-## Local Deployment
+## Prerequisites
 
-### Quick Start (Development)
+### For Docker Compose
 
-**Prerequisites**:
 - Docker 24+
 - Docker Compose v2+
-- Make
+- `make`
 
-**Steps**:
+### For Kubernetes
 
-1. **Clone and setup**:
-   ```bash
-   git clone https://github.com/lotoos0/resilience-lab.git
-   cd resilience-lab
-   ```
+Everything above, plus:
 
-2. **Start services**:
-   ```bash
-   make dev
-   ```
+- [minikube](https://minikube.sigs.k8s.io/) — local cluster
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) — configured against minikube
+- [Helm](https://helm.sh/) 3+
 
-3. **Verify deployment**:
-   ```bash
-   make ps
-   curl http://localhost:8000/healthz
-   curl http://localhost:8001/healthz
-   ```
+The Helm chart targets minikube. Running it against a remote cluster works, but
+`values-dev.yaml` mixes one pinned GHCR image for API with one local image for
+Payments (`pullPolicy: IfNotPresent`). For anything beyond a laptop, use pushed
+registry tags for both services. Tiny footgun, big `ImagePullBackOff` energy.
 
-### Configuration
+---
 
-#### Environment Variables
+## Local — Docker Compose
 
-Create `.env` file (optional):
+### Quick Start
 
-```bash
-# Database
-POSTGRES_USER=resilience
-POSTGRES_PASSWORD=resilience
-POSTGRES_DB=resilience_db
-
-# Redis
-REDIS_URL=redis://redis:6379
-
-# Services
-API_PORT=8000
-PAYMENTS_PORT=8001
-
-# Application
-LOG_LEVEL=INFO
-ENVIRONMENT=development
+```fish
+git clone https://github.com/lotoos0/resilience-lab.git; cd resilience-lab; make dev
 ```
 
-#### Custom docker-compose Override
+That's it. Docker Compose starts 4 services in dependency order:
 
-Create `docker-compose.override.yml`:
+1. **PostgreSQL** (postgres:16) — waits for `pg_isready`
+2. **Redis** (redis:7-alpine) — waits for `redis-cli ping`
+3. **Payments** — waits for PostgreSQL and Redis healthchecks
+4. **API** — waits for PostgreSQL, Redis, and Payments healthchecks; comes up last
 
-```yaml
-version: '3.8'
+Startup takes ~30s on a cold run (image pulls aside). The `depends_on: condition:
+service_healthy` chain means you won't hit a partially started stack.
 
-services:
-  api:
-    environment:
-      - DEBUG=true
-      - LOG_LEVEL=DEBUG
-    ports:
-      - "8000:8000"
+### Ports
 
-  payments:
-    environment:
-      - DEBUG=true
-    ports:
-      - "8001:8001"
+| Service | Port |
+|---------|------|
+| API | `8000` |
+| Payments | `8001` |
+| PostgreSQL | `5432` |
+| Redis | `6379` |
+
+### Verify
+
+```fish
+curl http://localhost:8000/healthz; curl http://localhost:8001/healthz
 ```
 
-### Port Mapping
+Expected: `{"status":"healthy","service":"api"}` and `{"status":"healthy","service":"payments"}`.
 
-| Service | Internal Port | External Port | Protocol |
-|---------|--------------|---------------|----------|
-| API | 8000 | 8000 | HTTP |
-| Payments | 8001 | 8001 | HTTP |
-| PostgreSQL | 5432 | 5432 | TCP |
-| Redis | 6379 | 6379 | TCP |
+### Useful Compose Commands
 
-### Data Persistence
-
-**Volumes**:
-- `pgdata`: PostgreSQL data
-- `redisdata`: Redis data
-
-**Location**: Docker volumes (managed by Docker)
-
-**Backup**:
-```bash
-# Backup PostgreSQL
-docker compose exec postgres pg_dump -U resilience resilience_db > backup.sql
-
-# Backup Redis
-docker compose exec redis redis-cli SAVE
-docker compose cp redis:/data/dump.rdb ./redis-backup.rdb
+```fish
+make ps          # status of all containers
+make logs        # tail all logs
+make logs-api    # tail API only
+make logs-payments
+make down        # stop (keep volumes)
+make clean       # stop + remove volumes + docker system prune
+make restart     # make down && make dev
 ```
 
-**Restore**:
-```bash
-# Restore PostgreSQL
-cat backup.sql | docker compose exec -T postgres psql -U resilience -d resilience_db
+### One Honest Note About PostgreSQL in Compose
 
-# Restore Redis
-docker compose cp ./redis-backup.rdb redis:/data/dump.rdb
-docker compose restart redis
+Docker Compose starts a PostgreSQL container and the services receive a
+`DATABASE_URL` env var. However, v0.1.0 service code does not open a PostgreSQL
+connection: Payments uses in-memory storage, and API does not use a database
+client at all. I left the container running anyway — it's groundwork for the
+migration I haven't done yet, and it keeps the local env vars honest with what
+Kubernetes already expects. See [ADR-004 in
+ARCHITECTURE.md](ARCHITECTURE.md#adr-004-in-memory-storage-in-v010).
+
+---
+
+## Kubernetes — minikube + Helm
+
+### First-Time Setup
+
+**Step 1** — start minikube and point Docker at its daemon:
+
+```fish
+minikube start; eval (minikube docker-env)
+```
+
+All shell snippets in this section use `fish` syntax. If you're running
+`bash` or `zsh`, use `eval $(minikube docker-env)` instead. Same command,
+different shell costume.
+
+The `eval` is essential. Without it, `docker build` writes images to the host
+daemon, not to minikube's — and your pods get `ImagePullBackOff` because they
+look for images that don't exist inside the cluster.
+
+**Step 2** — build the local image that `values-dev.yaml` actually references:
+
+```fish
+docker build -f services/payments/Dockerfile -t resilience-lab-payments:local .
+```
+
+`values-dev.yaml` uses different strategies per service:
+- **Payments**: `repository: resilience-lab-payments`, `tag: local`, `pullPolicy: IfNotPresent` — picks up the locally built image above.
+- **API**: `repository: ghcr.io/lotoos0/resilience-lab-api`, `tag: 8b86f3d`. With `pullPolicy: IfNotPresent`, minikube reuses that exact image if it already exists locally; otherwise it pulls from GHCR.
+
+If you want a fully local API build too, override both repository and tag:
+
+```fish
+docker build -f services/api/Dockerfile -t api:local .
+helm upgrade --install resilience-lab deploy/helm/ \
+  --values deploy/helm/values-dev.yaml \
+  --namespace resilience-lab \
+  --create-namespace \
+  --set api.image.repository=api \
+  --set api.image.tag=local
+```
+
+**Step 3** — optional: generate TLS certs for the separate Traefik IngressRoute:
+
+```fish
+./scripts/generate-certs.sh
+```
+
+Generates a self-signed RSA 2048 cert (365-day validity) for `resilience-lab.local`
+into `deploy/traefik/certs/`. These are gitignored — don't commit them. This
+script only creates files; it does not create the Kubernetes TLS Secret or apply
+`deploy/traefik/ingressroute.yaml`.
+
+**Step 4** — install the Helm chart:
+
+```fish
+make helm-up-dev
+```
+
+`helm-up-dev` depends on `helm-deps`, so it resolves the two subcharts (`api`,
+`payments`) before install. Running `make helm-deps` manually first is fine, but
+it is belt-and-suspenders territory; useful only if your belt enjoys paperwork.
+`helm-up-dev` runs:
+
+```
+helm upgrade --install resilience-lab deploy/helm/ \
+  --values deploy/helm/values-dev.yaml \
+  --namespace resilience-lab \
+  --create-namespace
+```
+
+If you generated Traefik certs in Step 3, wire them into Kubernetes after
+`helm-up-dev` creates the namespace:
+
+```fish
+kubectl create secret tls resilience-lab-tls \
+  -n resilience-lab \
+  --cert=deploy/traefik/certs/tls.crt \
+  --key=deploy/traefik/certs/tls.key \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+**Step 5** — optional but required for Envoy-based resilience checks:
+
+```fish
+kubectl apply -f deploy/envoy/
+```
+
+Envoy is not part of the Helm chart today — I haven't folded it in yet. The chart
+prepares some Envoy-facing policy/PDB objects, but the actual Envoy ConfigMap,
+Deployment, and Service live under `deploy/envoy/`. Yes, that split is a little
+spicy; I'm admitting it out loud here instead of pretending it's a design.
+
+### What Helm Deploys
+
+The parent chart (`deploy/helm/`, version `0.1.0`) renders 20 main resources:
+
+| Resource | Count | Notes |
+|----------|-------|-------|
+| Deployments | 3 | API, Payments, Redis |
+| Services | 3 | API, Payments, Redis |
+| HPAs | 2 | API (2→5), Payments (1→3) |
+| PDBs | 3 | API, Payments, and an Envoy PDB for the separately applied Envoy deployment |
+| NetworkPolicies | 7 | default-deny + explicit allows, including Envoy-facing policies |
+| ConfigMaps (Grafana dashboards) | 2 | System Overview, Resilience |
+
+Redis is a plain Deployment + Service included in the counts above; there is no
+Bitnami subchart involved.
+
+The render also includes 4 Helm test Pods:
+- 2 subchart connection tests: API `/healthz` and Payments `/healthz`
+- 1 parent-chart smoke test: API `/healthz` + Payments `/healthz`
+- 1 legacy API integration test that still calls `/api/payments/test`
+
+That last one is not a harmless museum piece: it is still active, and the
+current API exposes `/pay`, not `/api/payments/test`. So `make helm-test` can
+fail even when the deployed services are healthy. I am leaving this called out
+explicitly because it is exactly the kind of tiny stale hook that wastes 20
+minutes and then looks offended when you find it.
+
+No PostgreSQL or Envoy Deployment is rendered by the Helm chart today.
+`DATABASE_URL` is still present in service env vars as future groundwork — I'm
+keeping the wiring in place for whenever I actually build the persistence
+layer, but v0.1.0 service code does not depend on a live Kubernetes PostgreSQL pod.
+
+**Dev overrides** (`values-dev.yaml`):
+- `api.replicaCount: 1` in the Deployment template, but the API HPA has `minReplicas: 2`; once HPA reconciles, expect 2 API pods
+- `payments.replicaCount: 1`
+- API pinned to GHCR tag `8b86f3d`; Payments uses local tag `resilience-lab-payments:local`
+- `LOG_LEVEL: DEBUG`
+
+### Verify the Deployment
+
+```fish
+kubectl get pods -n resilience-lab; kubectl get hpa -n resilience-lab
+```
+
+Run Helm tests if you specifically want to exercise the chart hooks:
+
+```fish
+make helm-test
+```
+
+Important: `make helm-test` currently runs 4 hook Pods, and 1 of them is a
+known-stale legacy integration hook. Treat it as a chart-maintenance signal, not
+as the cleanest deployment smoke check. For a boring and reliable smoke check
+after applying `deploy/envoy/`, port-forward Envoy:
+
+```fish
+kubectl port-forward -n resilience-lab svc/envoy-proxy 8080:80
+curl http://localhost:8080/healthz
+```
+
+Access via Traefik only after you install Traefik CRDs/controller, create the TLS
+Secret, and apply `deploy/traefik/ingressroute.yaml` (add
+`resilience-lab.local` to `/etc/hosts` pointing at `$(minikube ip)` first):
+
+```fish
+curl -k https://resilience-lab.local/api/healthz
+```
+
+Or use `health-loop.sh` for a continuous stream of requests during chaos testing
+after the Envoy service exists:
+
+```fish
+./scripts/health-loop.sh
+```
+
+Fires a request every 200ms to `localhost:8080/api/healthz` and prints the
+HTTP status code — useful for watching the system recover in real time.
+
+### Day-to-Day Helm Operations
+
+```fish
+# Upgrade after a Payments code change (rebuild resilience-lab-payments:local first)
+make helm-up-dev
+kubectl rollout restart deployment/resilience-lab-payments -n resilience-lab
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
+
+# Upgrade after a local API code change (rebuild api:local first)
+helm upgrade --install resilience-lab deploy/helm/ \
+  --values deploy/helm/values-dev.yaml \
+  --namespace resilience-lab \
+  --set api.image.repository=api \
+  --set api.image.tag=local
+kubectl rollout restart deployment/resilience-lab-api -n resilience-lab
+kubectl rollout status deployment/resilience-lab-api -n resilience-lab
+
+# Rollback to previous revision
+make rollback-1
+
+# Rollback to specific revision N
+make rollback-2
+
+# Check release history
+helm history resilience-lab -n resilience-lab
+
+# Tear down the Helm release only
+make helm-down
+
+# Tear down the separately applied Envoy manifests too
+kubectl delete -f deploy/envoy/
+```
+
+I add the rollout restart on purpose, every time, because reusing the same local
+tag means Kubernetes has no idea anything changed. It doesn't restart pods just
+because I rebuilt an image inside minikube — it needs a changed pod template or
+an explicit nudge from me. Computers, sadly, do not smell fresh Docker layers.
+
+### Observability Stack
+
+Prometheus/Grafana and Loki are not in the main Helm chart — they're deployed
+separately via kube-prometheus-stack and grafana/loki-stack. See
+[docs/observability.md](observability.md) for the full setup walkthrough.
+
+ServiceMonitor manifests at `deploy/prometheus/servicemonitor-*.yaml` connect
+Prometheus to the API, Payments, and Envoy admin endpoints once the monitoring
+stack is up and those manifests have been applied.
+
+---
+
+## Images & Registry
+
+### Build
+
+Both images are based on `python:3.11-slim`. The builds run from the repo root
+(context is `.`) so they can access `requirements.txt` and `services/`.
+
+**API image** (`services/api/Dockerfile`):
+- Installs all dependencies from `requirements.txt`
+- Copies `services/api/`
+- Runs as `appuser` (non-root)
+- Port: `8000`
+
+**Payments image** (`services/payments/Dockerfile`):
+- Same as API, but also installs `iproute2`
+- `iproute2` ships the `tc` command — without it, `fault-inject.sh latency`
+  fails with a missing binary. This is why it's in the image used for chaos
+  runs and not just in a local shell.
+- Port: `8001`
+
+Security baseline applied in both:
+- `RUN apt-get upgrade -y` — patches OS packages at build time
+- `pip install --no-cache-dir` — no pip cache left in the layer
+- `pip install --upgrade "wheel>=0.46.2"` — keeps the wheel package on a patched baseline
+- `USER appuser` — non-root at runtime
+- `HEALTHCHECK` — Docker-native probe on `/healthz`
+
+### Registry
+
+Images are pushed to GitHub Container Registry:
+
+```
+ghcr.io/lotoos0/resilience-lab-api
+ghcr.io/lotoos0/resilience-lab-payments
+```
+
+Tags:
+- `<git-sha>` — every push to `main` or `develop`
+- `<version>` (e.g. `v0.1.0`) — every `v*` tag push
+- `latest` — always updated alongside the SHA/version tag
+
+I publish these as public packages on purpose, so anyone cloning the repo can
+pull without a token:
+
+```fish
+docker pull ghcr.io/lotoos0/resilience-lab-api:latest
+```
+
+If I ever flip that visibility, you'd need to authenticate first with
+`docker login ghcr.io`.
+
+---
+
+## CI/CD Pipeline
+
+Two GitHub Actions workflows in `.github/workflows/`:
+
+### CI (`ci.yml`) — every push and PR to `main`/`develop`
+
+Runs 5 jobs. `lint`, `trivy-fs`, and `test` run in parallel. `integration-test`
+and `build` both need `lint` and `test` to pass first:
+
+```
+lint ──────┬── integration-test
+           │
+test ──────┤
+           └── build
+
+trivy-fs (independent, runs in parallel)
+```
+
+| Job | What it does |
+|-----|-------------|
+| `lint` | `ruff check services/` |
+| `trivy-fs` | Trivy filesystem scan (CRITICAL + HIGH), results to GitHub Security tab |
+| `test` | Unit tests (`pytest -m "not integration"`) with postgres:16 + redis:7-alpine sidecar containers (mocked by tests), coverage → Codecov |
+| `integration-test` | Spins up the Docker Compose stack, does a shallow health wait plus a 10s settle, runs `pytest -m integration`, tears down |
+| `build` | Builds both images, runs Trivy image scan (exit-code 1 on CRITICAL/HIGH unfixed CVEs) |
+
+**Note on CI service containers**: The test job spins up postgres:16 and
+redis:7-alpine — but the unit tests mock both (Redis via `unittest.mock.Mock`,
+PostgreSQL is unused entirely). The containers are there as groundwork for
+future integration-level unit tests, not because anything currently requires
+a live connection.
+
+**Why integration tests are separate**: They need Docker Compose, which means
+building images. I keep them in their own job so `lint` and `test` can fail fast
+without waiting for Docker. The wait loop I wrote checks for any `healthy`
+container and then sleeps 10s — it's a pragmatic smoke gate I'm comfortable with,
+not a perfect "all services are healthy" oracle. Tiny CI fortune cookie, basically.
+
+### CD (`cd.yml`) — push to `main`/`develop`, or `v*` tag
+
+One job: `build-and-push`.
+
+Determines the image tag:
+- If triggered by a `v*` tag → tag = version string (e.g. `v0.1.0`)
+- Otherwise → tag = `$GITHUB_SHA`
+
+Builds both images, tags them, pushes SHA/version tag + `latest` to GHCR.
+
+**No automatic Kubernetes deploy**: The deploy step in `cd.yml` is commented
+out. I build and push automatically, but I trigger `helm upgrade` manually.
+Until there's a staging cluster with a proper kubeconfig secret, automating
+the K8s deploy would mean committing cluster credentials — not worth it.
+
+---
+
+## Chaos Testing Deployment
+
+Chaos tests run against the Kubernetes cluster. Docker Compose is not enough
+because you need Envoy to observe retries, ejections, and circuit breaking.
+Run `kubectl apply -f deploy/envoy/` before the Envoy-facing checks.
+
+### Before Running Chaos
+
+Make sure you're running with dev values:
+
+```fish
+make helm-up-dev
+kubectl apply -f deploy/envoy/
+```
+
+### Latency Injection
+
+Injects 300ms `tc netem` delay on all Payments pods:
+
+```fish
+./scripts/fault-inject.sh latency
+```
+
+This requires `NET_ADMIN` capability and `iproute2` in the container. If you
+get "Operation not permitted", apply chaos overrides:
+
+```fish
+helm upgrade resilience-lab deploy/helm/ \
+  -n resilience-lab \
+  -f deploy/helm/values-dev.yaml \
+  -f deploy/helm/values-chaos.yaml
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
+```
+
+`values-chaos.yaml` currently enables both `NET_ADMIN` and `runAsRoot: true` for
+Payments — `NET_ADMIN` alone wasn't enough on my cluster, `tc netem` still
+refused to behave at uid 1000, so I dropped to root for chaos runs only. It's
+for active experiments, not a baseline; restore `values-dev.yaml` afterwards.
+
+### FAIL_MODE and SLOW_MODE
+
+Inject via env var — triggers an automatic rolling update (new pods come up with
+the new env var, old ones terminate):
+
+```fish
+./scripts/fault-inject.sh failure   # FAIL_MODE=1 → Payments returns 500
+./scripts/fault-inject.sh slow      # SLOW_MODE=1 → Payments delays 2s
+./scripts/fault-inject.sh kill      # deletes one payments pod
 ```
 
 ### Cleanup
 
-```bash
-# Stop services (keep data)
-make down
+Always clean up after a chaos run:
 
-# Stop and remove volumes (DELETE DATA)
-docker compose down -v
-
-# Clean everything
-make clean
+```fish
+./scripts/fault-inject.sh cleanup
 ```
+
+Removes `FAIL_MODE` and `SLOW_MODE` env vars and `tc netem` rules.
+If you applied `values-chaos.yaml`, restore baseline:
+
+```fish
+helm upgrade resilience-lab deploy/helm/ -n resilience-lab -f deploy/helm/values-dev.yaml
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
+```
+
+See [runbooks/chaos-latency-injection.md](runbooks/chaos-latency-injection.md)
+and [runbooks/chaos-pod-kill.md](runbooks/chaos-pod-kill.md) for full step-by-step
+procedures with expected Grafana outputs.
 
 ---
 
-## Kubernetes Deployment
+## Scripts Reference
 
-> **Status**: Planned for M1 (Nov 17-25, 2025)
+| Script | What it does |
+|--------|-------------|
+| `fault-inject.sh latency` | 300ms `tc netem` delay on all Payments pods |
+| `fault-inject.sh failure` | `FAIL_MODE=1` — Payments returns HTTP 500 |
+| `fault-inject.sh slow` | `SLOW_MODE=1` — Payments delays 2s |
+| `fault-inject.sh kill` | Deletes one Payments pod |
+| `fault-inject.sh cleanup` | Removes all injections |
+| `generate-certs.sh` | Self-signed RSA 2048 cert for `resilience-lab.local` (365 days) |
+| `health-loop.sh` | Fires requests every 200ms, prints HTTP status — live recovery monitor |
 
-### Prerequisites
-
-- Kubernetes cluster (1.25+)
-- Helm 3+
-- kubectl configured
-- Container registry access (GHCR)
-
-### Architecture
-
-```
-┌─────────────────────────────────────────┐
-│         Kubernetes Cluster              │
-│                                         │
-│  ┌────────────────────────────────┐    │
-│  │  Ingress (Traefik)             │    │
-│  │  resilience-lab.example.com    │    │
-│  └────────────┬───────────────────┘    │
-│               │                         │
-│  ┌────────────▼──────┐  ┌──────────┐   │
-│  │ API Service       │  │ Payments │   │
-│  │ - Deployment      │  │ Service  │   │
-│  │ - Replicas: 3     │  │ - Dep    │   │
-│  │ - HPA enabled     │  │ - Rep: 2 │   │
-│  │ - PDB: min=2      │  └──────────┘   │
-│  └───────────────────┘                 │
-│                                         │
-│  ┌──────────────┐  ┌───────────────┐   │
-│  │ PostgreSQL   │  │    Redis      │   │
-│  │ StatefulSet  │  │  StatefulSet  │   │
-│  │ - PVC: 10Gi  │  │  - PVC: 5Gi   │   │
-│  └──────────────┘  └───────────────┘   │
-└─────────────────────────────────────────┘
-```
-
-### Helm Deployment (M1)
-
-**Coming in M1**. Expected structure:
-
-```bash
-# Add Helm repository
-helm repo add resilience-lab https://lotoos0.github.io/resilience-lab-helm
-
-# Install
-helm install resilience-lab resilience-lab/resilience-lab \
-  --namespace resilience-lab \
-  --create-namespace \
-  --values values-production.yaml
-
-# Upgrade
-helm upgrade resilience-lab resilience-lab/resilience-lab \
-  --namespace resilience-lab \
-  --values values-production.yaml
-
-# Rollback
-helm rollback resilience-lab 1 --namespace resilience-lab
-```
-
-### Kubernetes Resources
-
-#### Namespace
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: resilience-lab
-  labels:
-    name: resilience-lab
-    environment: production
-```
-
-#### API Deployment (Example)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: api
-  namespace: resilience-lab
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: api
-  template:
-    metadata:
-      labels:
-        app: api
-    spec:
-      containers:
-      - name: api
-        image: ghcr.io/lotoos0/resilience-lab-api:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: db-credentials
-              key: url
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
-```
-
-#### HPA (Horizontal Pod Autoscaler)
-
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: api-hpa
-  namespace: resilience-lab
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: api
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-```
-
-#### PDB (Pod Disruption Budget)
-
-```yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: api-pdb
-  namespace: resilience-lab
-spec:
-  minAvailable: 2
-  selector:
-    matchLabels:
-      app: api
-```
-
-### Ingress Configuration
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: resilience-lab-ingress
-  namespace: resilience-lab
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.tls: "true"
-spec:
-  ingressClassName: traefik
-  tls:
-  - hosts:
-    - resilience-lab.example.com
-    secretName: resilience-lab-tls
-  rules:
-  - host: resilience-lab.example.com
-    http:
-      paths:
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: api
-            port:
-              number: 8000
-      - path: /payments
-        pathType: Prefix
-        backend:
-          service:
-            name: payments
-            port:
-              number: 8001
-```
-
----
-
-## Production Considerations
-
-### Security
-
-#### Network Policies
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: api-network-policy
-  namespace: resilience-lab
-spec:
-  podSelector:
-    matchLabels:
-      app: api
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app: ingress
-    ports:
-    - protocol: TCP
-      port: 8000
-  egress:
-  - to:
-    - podSelector:
-        matchLabels:
-          app: payments
-    ports:
-    - protocol: TCP
-      port: 8001
-  - to:
-    - podSelector:
-        matchLabels:
-          app: postgres
-    ports:
-    - protocol: TCP
-      port: 5432
-```
-
-#### Secrets Management
-
-```bash
-# Create secrets
-kubectl create secret generic db-credentials \
-  --from-literal=url='postgresql://user:pass@postgres:5432/db' \
-  --namespace resilience-lab
-
-# Or use Sealed Secrets / External Secrets Operator
-```
-
-### Resource Limits
-
-**Recommended limits per service**:
-
-| Service | CPU Request | CPU Limit | Memory Request | Memory Limit |
-|---------|-------------|-----------|----------------|--------------|
-| API | 250m | 500m | 256Mi | 512Mi |
-| Payments | 250m | 500m | 256Mi | 512Mi |
-| PostgreSQL | 500m | 1000m | 512Mi | 1Gi |
-| Redis | 100m | 200m | 128Mi | 256Mi |
-
-### Health Checks
-
-**Liveness Probe**: Restart if unhealthy
-```yaml
-livenessProbe:
-  httpGet:
-    path: /healthz
-    port: 8000
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  failureThreshold: 3
-```
-
-**Readiness Probe**: Remove from load balancer if unhealthy
-```yaml
-readinessProbe:
-  httpGet:
-    path: /healthz
-    port: 8000
-  initialDelaySeconds: 5
-  periodSeconds: 5
-  failureThreshold: 2
-```
-
-### Scaling Strategy
-
-**Horizontal Scaling**:
-- HPA based on CPU/Memory
-- Target: 70% CPU utilization
-- Min replicas: 2
-- Max replicas: 10
-
-**Vertical Scaling**:
-- VPA (Vertical Pod Autoscaler) - future
-- Resource optimization based on metrics
-
----
-
-## Monitoring & Observability
-
-> Detailed monitoring coming in M3
-
-### Health Endpoints
-
-| Service | Endpoint | Expected Response |
-|---------|----------|-------------------|
-| API | `GET /healthz` | `{"status":"healthy"}` |
-| Payments | `GET /healthz` | `{"status":"healthy"}` |
-
-### Metrics (Future - M3)
-
-**Prometheus metrics**:
-- HTTP request duration
-- Request count by status code
-- Database connection pool stats
-- Cache hit/miss ratio
-
-**Access**: `http://service:8000/metrics`
-
-### Logging (Future - M3)
-
-**Structured logging with Loki**:
-```json
-{
-  "timestamp": "2025-11-18T10:00:00Z",
-  "level": "INFO",
-  "service": "payments",
-  "message": "Payment processed",
-  "payment_id": "uuid",
-  "amount": 100.0,
-  "duration_ms": 45
-}
-```
-
-### Tracing (Future - M3)
-
-**OpenTelemetry + Jaeger**:
-- Distributed tracing
-- Request flow visualization
-- Performance bottleneck identification
-
----
-
-## Backup & Recovery
-
-### Database Backup
-
-**Automated backups** (Future - M1):
-
-```bash
-# CronJob for daily backups
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: postgres-backup
-spec:
-  schedule: "0 2 * * *"  # 2 AM daily
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - name: backup
-            image: postgres:16
-            command:
-            - sh
-            - -c
-            - pg_dump -U resilience resilience_db | gzip > /backup/backup-$(date +%Y%m%d).sql.gz
-```
-
-### Disaster Recovery
-
-**RTO (Recovery Time Objective)**: < 1 hour
-**RPO (Recovery Point Objective)**: < 24 hours
-
-**Recovery Steps**:
-1. Deploy from Helm chart
-2. Restore database from backup
-3. Verify services health
-4. Run smoke tests
-5. Route traffic
+`pg_backup.sh` and `redis_backup.sh` are empty stubs — PostgreSQL isn't wired
+up yet, and Redis counters are ephemeral by design (TTL 60s). Nothing worth
+backing up at this stage.
 
 ---
 
 ## Troubleshooting
 
-### Pod Not Starting
+For common issues specific to Helm field ownership conflicts, minikube image
+visibility, Prometheus scrape failures, and observability targets, there are
+dedicated troubleshooting docs in `docs/runbooks/` and `docs/troubleshooting/`.
+Short versions below.
 
-```bash
-# Check pod status
+### Pod stuck in `ImagePullBackOff`
+
+Usually means the image tag in the Deployment does not exist where minikube is
+looking. For the default dev setup, rebuild the Payments image inside minikube:
+
+```fish
+eval (minikube docker-env)
+docker build -f services/payments/Dockerfile -t resilience-lab-payments:local .
+make helm-up-dev
+kubectl rollout restart deployment/resilience-lab-payments -n resilience-lab
+kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
+```
+
+Using `bash` or `zsh` here? Swap the first line for
+`eval $(minikube docker-env)`.
+
+If the API pod is the one failing, either make sure
+`ghcr.io/lotoos0/resilience-lab-api:8b86f3d` is pullable, or build a local API
+image and override both `api.image.repository` and `api.image.tag` as shown in
+the first-time setup section.
+
+### Helm upgrade fails with field ownership error
+
+Happens when `kubectl` and Helm both manage the same field. Fix:
+
+```fish
+helm upgrade resilience-lab deploy/helm/ -n resilience-lab \
+  -f deploy/helm/values-dev.yaml \
+  --force-conflicts
+```
+
+See [runbooks/TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md](runbooks/TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md).
+
+### Pod not starting — general
+
+```fish
 kubectl get pods -n resilience-lab
-
-# Describe pod
 kubectl describe pod <pod-name> -n resilience-lab
-
-# Check logs
 kubectl logs <pod-name> -n resilience-lab
-
-# Check events
 kubectl get events -n resilience-lab --sort-by='.lastTimestamp'
 ```
 
-### Service Unavailable
+### Service unreachable
 
-```bash
-# Check service
+```fish
 kubectl get svc -n resilience-lab
-
-# Check endpoints
 kubectl get endpoints -n resilience-lab
-
-# Test connectivity
 kubectl run -it --rm debug --image=busybox --restart=Never -- sh
-# wget -O- http://api:8000/healthz
+# then inside: wget -O- http://resilience-lab-api:8000/healthz
 ```
 
-### Database Connection Issues
+### Envoy not scraping in Prometheus
 
-```bash
-# Check PostgreSQL pod
-kubectl logs postgres-0 -n resilience-lab
-
-# Test connection
-kubectl exec -it postgres-0 -n resilience-lab -- psql -U resilience -d resilience_db
-
-# Check secrets
-kubectl get secret db-credentials -n resilience-lab -o yaml
-```
-
-### Performance Issues
-
-```bash
-# Check resource usage
-kubectl top pods -n resilience-lab
-
-# Check HPA status
-kubectl get hpa -n resilience-lab
-
-# Check metrics
-kubectl describe hpa api-hpa -n resilience-lab
-```
+Check the ServiceMonitor label selector matches the Prometheus instance and
+that the Envoy admin port (9901) is accessible. See
+[runbooks/TROUBLESHOOTING_PROMETHEUS_SCRAPE.md](runbooks/TROUBLESHOOTING_PROMETHEUS_SCRAPE.md).
 
 ---
 
-## CI/CD Integration
-
-### GitHub Actions Deployment
-
-**Workflow** (`.github/workflows/deploy.yml`):
-
-```yaml
-name: Deploy to Kubernetes
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Configure kubeconfig
-        run: |
-          echo "${{ secrets.KUBECONFIG }}" > kubeconfig
-          export KUBECONFIG=kubeconfig
-
-      - name: Deploy with Helm
-        run: |
-          helm upgrade --install resilience-lab ./deploy/helm \
-            --namespace resilience-lab \
-            --set image.tag=${{ github.sha }} \
-            --atomic \
-            --timeout 5m
-```
-
----
-
-## Next Steps
-
-1. **M1**: Implement Helm charts
-2. **M2**: Add Traefik + Envoy
-3. **M3**: Implement full observability stack
-4. **M4**: Production-ready deployment
-
-For more information:
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
-- [DEVELOPMENT.md](./DEVELOPMENT.md)
-- [Helm Charts](../deploy/helm/) (coming in M1)
+*For architecture decisions behind deployment choices, see [ARCHITECTURE.md](ARCHITECTURE.md).*

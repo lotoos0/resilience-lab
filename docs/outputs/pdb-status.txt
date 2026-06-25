@@ -1,4 +1,0 @@
-NAME                          MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
-resilience-lab-api-pdb        1               N/A               1                     43h
-resilience-lab-envoy-pdb      1               N/A               1                     43h
-resilience-lab-payments-pdb   1               N/A               0                     43h

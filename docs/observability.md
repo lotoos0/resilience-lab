@@ -1,49 +1,69 @@
 # Observability
 
-This page is the starting point for checking whether Resilience Lab is observable:
-what is scraped, where dashboards live, which alerts exist, and how to verify chaos
-experiments with Prometheus, Grafana, and Loki.
+_Last updated: 2026-06-25_
 
-Use it when you want to:
+If something is broken and you don't know why, this is the right document. It covers
+what Prometheus scrapes, where dashboards live, which alerts exist, and how to watch
+the system fall over and recover during chaos experiments.
 
-- confirm that API and Envoy metrics are scraped by Prometheus;
-- inspect service logs in Loki;
-- verify Grafana dashboards after deployment;
-- observe pod kill and latency injection experiments;
-- troubleshoot missing targets, dashboards, or alerts.
+---
 
-## How to read this document
+## Table of Contents
 
-- Start with **[Current Scope](#current-scope)** to see what observability exists today.
-- Use **[Quick Verification](#quick-verification)** after deploying or upgrading the stack.
-- Use **[Chaos Observability](#chaos-observability)** while running pod kill or latency injection tests.
-- Use **[Troubleshooting](#troubleshooting)** when targets, alerts, or dashboards are missing.
+- [Current Scope](#current-scope)
+- [Maintainer Note](#maintainer-note)
+- [Metrics Endpoints](#metrics-endpoints)
+- [Logging (Loki + Promtail)](#logging-loki--promtail)
+- [Grafana Dashboards](#grafana-dashboards)
+- [Prometheus Configuration](#prometheus-configuration)
+- [Recording Rules](#recording-rules)
+- [Alert Rules](#alert-rules)
+- [Quick Verification](#quick-verification)
+- [Chaos Observability](#chaos-observability)
+- [Troubleshooting](#troubleshooting)
+
+---
 
 ## Current Scope
 
-Implemented:
+What's wired up and working in v0.1.0:
 
-- API metrics endpoint: `GET /metrics`
-- API health endpoint: `GET /healthz`
-- Envoy Prometheus stats endpoint: `GET /stats/prometheus` on the admin port
-- Prometheus `ServiceMonitor` for API metrics
-- Prometheus `ServiceMonitor` for Envoy metrics
-- Prometheus recording rules for API, Envoy, and basic availability metrics
-- Basic Prometheus alert rules for v0.1.0
-- Grafana system overview dashboard JSON
-- Loki + Promtail log aggregation with a Loki datasource in Grafana (issue `#38`)
-- Chaos observability queries: pod kill recovery and latency injection monitoring (issue `#42`)
+- API `/metrics` endpoint (prometheus-fastapi-instrumentator)
+- Payments `/metrics` endpoint (same instrumentator, same setup)
+- Envoy `/stats/prometheus` on the admin port
+- Prometheus `ServiceMonitor` for API, Payments, and Envoy
+- 14 recording rules — Envoy, API, rate-limit, and pod availability metrics
+- 3 alert rules: `HighErrorRate`, `APIDown`, `PrometheusTargetDown`
+- 2 Grafana dashboards: System Overview and Traffic & Latency
+- Loki + Promtail log aggregation, browsable through Grafana when a Loki datasource
+  is configured
 
-Planned in separate issues:
+Planned but not yet done:
 
-- OpenTelemetry tracing baseline: GitHub issue `#60`
-- Resilience dashboard panels: GitHub issues `#36`, `#37`, `#50`
+- OpenTelemetry tracing baseline: issue `#60`
+- Resilience dashboard panels: issue `#50`
+- Advanced multi-window burn-rate SLO alerting: post-v0.1.0 backlog
 
-Known limitations:
+---
 
-- Payments does not expose `/metrics` yet.
-- Advanced multi-window burn-rate SLO alerting is deferred to the post-v0.1.0 backlog.
-- `docs/outputs/*` files are evidence snapshots, not live monitoring state.
+## Maintainer Note
+
+This page is meant to be the observability front door, not a museum of every
+incident I've survived. The detailed war stories live in runbooks; this file keeps
+the current map: what exists, where it is wired, and how to verify it without
+digging through five tabs while the cluster is doing interpretive dance.
+
+Current inventory:
+
+- 3 scrape endpoints: API `/metrics`, Payments `/metrics`, Envoy `/stats/prometheus`
+- 3 ServiceMonitors: API, Payments, Envoy
+- 14 recording rules: 7 Envoy, 4 API/rate-limit, 3 availability
+- 3 alert rules: `HighErrorRate`, `APIDown`, `PrometheusTargetDown`
+- 2 Grafana dashboards: System Overview, Traffic & Latency
+- 2 log components: Loki and Promtail
+- 3 linked chaos runbooks for pod kill, latency injection, and rollback/recovery
+
+---
 
 ## Metrics Endpoints
 
@@ -62,47 +82,56 @@ Key metrics:
 - `rl_allowed_total`
 - `rl_denied_total`
 
-The rate-limit metrics are emitted by `services/api/middleware/rate_limit.py` and are labelled by tenant.
+The rate-limit counters are emitted by `services/api/middleware/rate_limit.py` and
+labelled by tenant.
+
+### Payments
+
+Same instrumentator setup as API:
+
+```text
+GET /metrics
+```
+
+Exposes standard FastAPI HTTP metrics. No rate-limit counters — those live in the
+API middleware only.
 
 ### Envoy
 
-Envoy exposes Prometheus-formatted metrics on the admin listener.
+Envoy exposes Prometheus-formatted metrics on the admin listener:
 
 ```text
 GET /stats/prometheus
 ```
 
-Key metric areas:
+Key metric areas: upstream requests, upstream 5xx responses, retry counters, outlier
+detection counters, circuit breaker counters.
 
-- upstream requests
-- upstream 5xx responses
-- retry counters
-- outlier detection counters
-- circuit breaker counters
+---
 
 ## Logging (Loki + Promtail)
 
 Logs from API, Payments, and Envoy are aggregated in Loki and browsable through
-the Grafana **Explore** view.
+Grafana **Explore**.
 
-Deployment:
+**Deployment:**
 
-- Helm release `loki` (chart `grafana/loki-stack`) in the `monitoring` namespace, bundling
-  Loki and Promtail in a single release.
-- Values: `deploy/loki/values.yaml` (small persistent volume sized for a single-node
-  minikube lab, ~7 day retention to match Prometheus).
-- The chart auto-provisions a Grafana datasource named **Loki** (pointing at
-  `http://loki:3100`) via the same sidecar mechanism used for the Prometheus/Alertmanager
-  datasources — no extra manifest needed.
+- Helm release `loki` (chart `grafana/loki-stack`) in the `monitoring` namespace —
+  bundles Loki and Promtail in a single release.
+- Values: `deploy/loki/values.yaml` (~7 day retention, sized for a single-node
+  minikube lab).
+- Grafana already comes from kube-prometheus-stack; the Loki chart does not deploy a
+  second Grafana. If **Explore** does not show a **Loki** datasource, add one that
+  points at `http://loki:3100`.
 
-Install/upgrade:
+**Install/upgrade:**
 
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
 helm upgrade --install loki grafana/loki-stack -n monitoring -f deploy/loki/values.yaml
 ```
 
-Check status:
+**Check status:**
 
 ```bash
 helm status loki -n monitoring
@@ -112,9 +141,7 @@ kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail
 
 ### Labels
 
-Promtail's default Kubernetes pipeline derives labels from pod metadata, so logs are
-queryable per service via the `app` label (taken from `app.kubernetes.io/name`, falling
-back to the `app` pod label):
+Promtail derives labels from pod metadata. Services are queryable via the `app` label:
 
 - `{app="api"}` — Resilience Lab API
 - `{app="payments"}` — Payments service
@@ -133,142 +160,150 @@ Service-level filtering:
 {app="envoy-proxy"}
 ```
 
-Line filtering (substring match):
+Line filtering:
 
 ```logql
 {app="api"} |= "healthz"
 {app="api"} |= "error"
 ```
 
-Parsing JSON container log lines and reformatting to show just the application message:
+Parsing JSON container log lines:
 
 ```logql
 {namespace="resilience-lab"} | json | line_format "{{.log}}"
 ```
 
-Tenant/request context: the rate-limit middleware
-(`services/api/middleware/rate_limit.py`) logs a `logfmt`-style line per request —
-`rate_limit_check tenant=<tenant> path=<path> status=<allowed|denied> count=<n> limit=<n>` —
-so it can be parsed and filtered by tenant:
+Tenant/rate-limit context — the rate-limit middleware logs a `logfmt`-style line per
+request: `rate_limit_check tenant=<t> path=<p> status=<allowed|denied> count=<n> limit=<n>`:
 
 ```logql
 {app="api"} |= "rate_limit_check" | json | line_format "{{.log}}" | logfmt | tenant="acme"
 {app="api"} | json | line_format "{{.log}}" | logfmt | status="denied"
 ```
 
-> Note: container log lines arrive at Loki wrapped in the container runtime's JSON
-> envelope (`{"log": "...", "stream": "...", "time": "..."}`), so `| logfmt` alone
-> won't see the `tenant=`/`status=` fields — unwrap with `| json | line_format
-> "{{.log}}"` first, as in the "Parsing JSON container log lines" example above.
+> Container log lines arrive wrapped in the runtime's JSON envelope
+> (`{"log": "...", "stream": "...", "time": "..."}`), so `| logfmt` alone won't see
+> the `tenant=`/`status=` fields — unwrap with `| json | line_format "{{.log}}"` first.
 
-### Loki verification
+### Verification
 
-Open Grafana → **Explore**, select the **Loki** datasource, and run the queries above.
-Use the label browser to confirm `app`, `namespace`, and `container` values match the
-expected services.
+Open Grafana → **Explore**, select the **Loki** datasource, and run `{app="api"}`.
+Use the label browser to confirm `app`, `namespace`, and `container` values match.
+
+---
 
 ## Grafana Dashboards
 
-The "Resilience Lab 0 System Overview" dashboard (`uid: adnxcgd`) is provisioned
-as code, the same way `kube-prometheus-stack` loads its bundled dashboards and
-`loki` provisions its datasource:
+Both dashboards are provisioned as code via labeled ConfigMaps picked up by the
+`grafana-sc-dashboard` sidecar — no manual import needed.
 
-- Dashboard JSON lives in the chart at `deploy/helm/dashboards/system-overview.json`.
-- `deploy/helm/templates/grafana-dashboard-system-overview.yaml` wraps it in a
-  `ConfigMap` labeled `grafana_dashboard: "1"`.
-- The `grafana-sc-dashboard` sidecar (`k8s-sidecar`, watching all namespaces)
-  picks up the labeled ConfigMap and loads the dashboard into Grafana automatically
-  — no manual import needed.
+### Resilience Lab 0 System Overview (`uid: adnxcgd`)
 
-Dashboard verification:
+- JSON: `deploy/helm/dashboards/system-overview.json`
+- Template: `deploy/helm/templates/grafana-dashboard-system-overview.yaml`
+- URL: `/d/adnxcgd/resilience-lab-0-system-overview`
+
+![Resilience Lab – System Overview dashboard](img/grafana-dashboard-overview.png)
+
+### Resilience Lab – Traffic & Latency (`uid: resilience-core`)
+
+- JSON: `deploy/helm/dashboards/resilience.json`
+- Template: `deploy/helm/templates/grafana-dashboard-resilience.yaml`
+- URL: `/d/resilience-core/...`
+
+Panels: HTTP Status Codes, RPS (1m), p95 Latency, Envoy Retries rate 5m, Outlier
+Ejections rate 5m, Rate Limit Denials/429 rate 5m (by tenant), Envoy Bulkhead
+Overflow rate 5m. All rate/ejection panels read from recording rules, not raw counters.
+
+![Resilience Lab – Traffic & Latency dashboard](img/resilience-dashboard.png)
+
+**Verification:**
 
 ```bash
 kubectl get configmap -n resilience-lab -l grafana_dashboard=1
 curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/api/search
 ```
 
-`/api/search` should list "Resilience Lab 0 System Overview" at
-`/d/adnxcgd/resilience-lab-0-system-overview`.
+`/api/search` should return both `adnxcgd` and `resilience-core`.
 
-### Resilience Lab – Traffic & Latency
-
-The "Resilience Lab – Traffic & Latency" dashboard (`uid: resilience-core`) is
-provisioned the same way, via `deploy/helm/dashboards/resilience.json` and
-`deploy/helm/templates/grafana-dashboard-resilience.yaml`. Panels:
-
-- HTTP Status Codes, RPS (1m), p95 Latency
-- Envoy Retries — rate 5m (`envoy:retries:rate5m`, by `envoy_cluster_name`)
-- Outlier Ejections — rate 5m (`envoy:outlier_ejections:rate5m`, by `envoy_cluster_name`)
-- Rate Limit Denials / 429 — rate 5m (`api:rate_limit_denied:rate5m`, by `tenant`)
-- Envoy Bulkhead Overflow — rate 5m (`envoy:bulkhead_overflow:rate5m`, by `envoy_cluster_name`)
-
-The retry/ejection/429/bulkhead panels read from the recording rules above
-rather than the raw `*_total` counters, so they show smoothed per-second
-rates instead of ever-growing totals.
-
-![Resilience Lab – Traffic & Latency dashboard](img/resilience-dashboard.png)
-
-![Resilience Lab – System Overview dashboard](img/grafana-dashboard-overview.png)
+---
 
 ## Prometheus Configuration
 
-Prometheus-related manifests:
+Manifests:
 
 - `deploy/prometheus/values.yaml`
 - `deploy/prometheus/servicemonitor-api.yaml`
+- `deploy/prometheus/servicemonitor-payments.yaml`
 - `deploy/prometheus/servicemonitor-envoy.yaml`
 - `deploy/prometheus/rules.yaml`
 
-The main `PrometheusRule` is `resilience-lab-rules` in the `monitoring` namespace.
+The main `PrometheusRule` is `resilience-lab-rules` in the `monitoring` namespace:
 
 ```bash
 kubectl get prometheusrule -n monitoring
 kubectl describe prometheusrule resilience-lab-rules -n monitoring
 ```
 
+---
+
 ## Recording Rules
 
-The project currently defines recording rules for:
+14 rules defined in `deploy/prometheus/rules.yaml`:
 
-- Envoy request rate
-- Envoy 5xx error rate
-- Envoy p95 upstream request duration
-- Envoy active upstream connections
-- Envoy retry rate (`envoy:retries:rate5m`)
-- Envoy outlier ejection rate (`envoy:outlier_ejections:rate5m`)
-- Envoy bulkhead overflow rate (`envoy:bulkhead_overflow:rate5m`)
-- API request rate
-- API 5xx error rate
-- Rate-limit allowed/denied request rates
-- Basic target availability ratio
+**Envoy (7 rules):**
 
-These rules live in `deploy/prometheus/rules.yaml`.
+- `envoy:http_requests:rate5m` — request rate
+- `envoy:http_errors_5xx:rate5m` — 5xx error rate
+- `envoy:http_request_duration:p95` — p95 upstream latency
+- `envoy:upstream_connections:current` — active upstream connections
+- `envoy:retries:rate5m` — retry rate
+- `envoy:outlier_ejections:rate5m` — outlier ejection rate
+- `envoy:bulkhead_overflow:rate5m` — bulkhead overflow rate
+
+**API (4 rules):**
+
+- `api:http_requests:rate5m` — request rate
+- `api:http_errors:rate5m` — error rate
+- `api:rate_limit_denied:rate5m` — rate-limit denials by tenant
+- `api:rate_limit_allowed:rate5m` — rate-limit passes by tenant
+
+**Availability (3 rules):**
+
+- `resilience_lab:pod_available:count` — available pod count
+- `resilience_lab:pod_total:count` — total pod count
+- `resilience_lab:availability:ratio` — availability ratio (available/total)
+
+---
 
 ## Alert Rules
 
-The v0.1.0 alert baseline is intentionally small and practical.
+The v0.1.0 alert baseline is intentionally small — three rules that cover the most
+actionable lab failures.
 
 ### HighErrorRate
 
 Fires when more than 5% of API requests return 5xx for 5 consecutive minutes while
 the API is receiving traffic. Catches application regressions and upstream dependency
-failures (e.g. Payments returning 500s) before they become user-visible outages.
+failures before they become visible outages.
 
 ### APIDown
 
 Fires when Prometheus cannot scrape the API target for 1 minute, or when the target
-is not discovered at all. Useful for catching silent scrape failures — if this fires
-in a healthy cluster, check ServiceMonitor selectors and NetworkPolicy.
+is not discovered at all. If this fires in a healthy cluster, check ServiceMonitor
+selectors and NetworkPolicy first.
 
 ### PrometheusTargetDown
 
 Fires when any target in the `resilience-lab` namespace is unreachable for more than
 2 minutes, or when no target is discovered at all. Broader than `APIDown` — covers
-Envoy and any future monitored service in the namespace.
+Envoy, Payments, and any future monitored service in the namespace.
+
+---
 
 ## Quick Verification
 
-Run this after deploying or upgrading the stack to confirm everything is wired correctly.
+Run this after deploying or upgrading the stack.
 
 ### Prometheus
 
@@ -276,11 +311,10 @@ Run this after deploying or upgrading the stack to confirm everything is wired c
 kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
 ```
 
-Open `http://localhost:9090/targets` — both API and Envoy targets should be `UP`.
-Open `http://localhost:9090/alerts` — rules should be visible, none `FIRING` in a healthy cluster.
+Open `http://localhost:9090/targets` — API, Payments, and Envoy targets should be `UP`.
+Open `http://localhost:9090/alerts` — rules visible, none `FIRING` in a healthy cluster.
 
-If `resilience-lab` targets are missing (only `kube-system` / `monitoring` appear), the
-ServiceMonitor selectors likely don't match. Check with:
+If `resilience-lab` targets are missing:
 
 ```bash
 kubectl get servicemonitor -A
@@ -288,7 +322,7 @@ kubectl get svc -n resilience-lab --show-labels
 kubectl describe servicemonitor -n monitoring resilience-lab-api-metrics
 ```
 
-Apply or re-apply the rules if needed:
+Apply or re-apply rules if needed:
 
 ```bash
 kubectl apply -f deploy/prometheus/rules.yaml
@@ -297,12 +331,14 @@ kubectl get prometheusrule -n monitoring
 
 ### Loki
 
-Open Grafana → **Explore** → Loki datasource and run `{app="api"}`. If no logs appear,
+Open Grafana → **Explore** → Loki datasource, run `{app="api"}`. If no logs appear,
 check Promtail pods in `monitoring` and verify the `resilience-lab` namespace labels.
 
 ### Grafana dashboards
 
 ```bash
+kubectl get secret -n monitoring prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 -d; echo
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:3000
 curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/api/search
 ```
 
@@ -316,15 +352,17 @@ kubectl scale deployment -n resilience-lab resilience-lab-api --replicas=0
 kubectl scale deployment -n resilience-lab resilience-lab-api --replicas=2
 ```
 
+---
+
 ## Chaos Observability
 
-PromQL queries for observing the system during chaos experiments. Use these in
-Prometheus UI (`http://localhost:9090`) or in Grafana → **Explore** with the
-Prometheus datasource selected.
+PromQL queries for watching the system during chaos experiments. Use these in
+Prometheus UI (`http://localhost:9090`) or Grafana → **Explore** with the Prometheus
+datasource.
 
-Full runbooks: [`docs/runbooks/chaos-pod-kill.md`](runbooks/chaos-pod-kill.md),
-[`docs/runbooks/chaos-latency-injection.md`](runbooks/chaos-latency-injection.md),
-[`docs/runbooks/rollback-vs-recover.md`](runbooks/rollback-vs-recover.md).
+Full runbooks: [`chaos-pod-kill.md`](runbooks/chaos-pod-kill.md),
+[`chaos-latency-injection.md`](runbooks/chaos-latency-injection.md),
+[`rollback-vs-recover.md`](runbooks/rollback-vs-recover.md).
 
 ### Pod Kill — Recovery Monitoring
 
@@ -339,7 +377,7 @@ kube_pod_container_status_restarts_total{namespace="resilience-lab", container="
 envoy:outlier_ejections:rate5m
 ```
 
-Verify no alerts fired during the test:
+Verify no alerts fired:
 
 ```promql
 ALERTS{alertname=~"HighErrorRate|APIDown|PrometheusTargetDown", alertstate="firing"}
@@ -351,10 +389,10 @@ Expected result: `no data` (empty vector).
 
 ```promql
 # Envoy p95 upstream latency — rises to ~300ms+ during injection
-envoy:upstream_rq_time_p95:rate5m
+envoy:http_request_duration:p95
 
-# API 5xx error rate — should remain low (Envoy retries absorb slow responses)
-api:http_5xx:rate5m
+# API error rate — should stay low (Envoy retries absorb slow responses)
+api:http_errors:rate5m
 
 # Envoy retry rate — rises when upstream latency triggers timeout retries
 envoy:retries:rate5m
@@ -368,15 +406,14 @@ LogQL to correlate payments logs during injection:
 
 ### Grafana Panels to Watch
 
-Open the **"Resilience Lab – Traffic & Latency"** dashboard during any chaos
-experiment and monitor:
+Open **"Resilience Lab – Traffic & Latency"** during any chaos experiment:
 
-| Panel | Expected behaviour during chaos |
-|-------|--------------------------------|
-| p95 Latency | Spikes to 300ms+ during latency injection; normal during pod kill |
-| Envoy Retries | Rises during latency injection if timeout triggers retries |
-| Outlier Ejections | Should remain 0 (payments recovers before ejection threshold) |
-| HTTP Status Codes | No spike in 5xx during pod kill (Envoy routes around dead pod) |
+| Panel             | Expected behaviour during chaos                                   |
+| ----------------- | ----------------------------------------------------------------- |
+| p95 Latency       | Spikes to 300ms+ during latency injection; normal during pod kill |
+| Envoy Retries     | Rises during latency injection if timeout triggers retries        |
+| Outlier Ejections | Should remain 0 (payments recovers before ejection threshold)     |
+| HTTP Status Codes | No spike in 5xx during pod kill (Envoy routes around dead pod)    |
 
 ### Evidence Screenshots
 
@@ -385,25 +422,30 @@ no 5xx errors, Retries and Outlier Ejections remain at 0:
 
 ![Chaos pod kill — Traffic & Latency dashboard](img/chaos-pod-kill-grafana.png)
 
-Latency injection (300ms netem) — RPS and 2xx throughput drop at ~14:00 as
-payments → Redis connections accumulate delay; p95 panel did not capture the spike
-because the `rate5m` recording rule window outlasted the injection duration:
+Latency injection (300ms netem) — RPS and 2xx throughput drop at ~14:00; p95 panel
+did not capture the full spike because the `rate5m` recording rule window outlasted
+the injection duration:
 
 ![Chaos latency injection — Traffic & Latency dashboard](img/chaos-latency-grafana.png)
 
+---
+
 ## Troubleshooting
 
-If the API target is down, start with:
+If the API target is down or dashboards are missing, start here:
 
-- `docs/runbooks/TROUBLESHOOTING_OBSERVABILITY_TARGETS.md`
-- `docs/runbooks/TROUBLESHOOTING_PROMETHEUS_SCRAPE.md`
-- `kubectl get pods -n resilience-lab`
-- `kubectl logs -n resilience-lab deployment/resilience-lab-api`
-- `kubectl get servicemonitor -n monitoring`
-- `kubectl get netpol -n resilience-lab`
+- [`TROUBLESHOOTING_OBSERVABILITY_TARGETS.md`](runbooks/TROUBLESHOOTING_OBSERVABILITY_TARGETS.md)
+- [`TROUBLESHOOTING_PROMETHEUS_SCRAPE.md`](runbooks/TROUBLESHOOTING_PROMETHEUS_SCRAPE.md)
 
-Common causes:
+Quick diagnostics:
 
-- NetworkPolicy blocks Prometheus from scraping API or Envoy;
-- ServiceMonitor selector does not match service labels;
-- Prometheus release label does not match the kube-prometheus-stack selector.
+```bash
+kubectl get pods -n resilience-lab
+kubectl logs -n resilience-lab deployment/resilience-lab-api
+kubectl get servicemonitor -n monitoring
+kubectl get netpol -n resilience-lab
+```
+
+Common causes: NetworkPolicy blocking Prometheus from scraping; ServiceMonitor selector
+not matching service labels; Prometheus release label not matching the
+kube-prometheus-stack selector.

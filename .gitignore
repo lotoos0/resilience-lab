@@ -265,3 +265,8 @@ scripts/test-mcp-servers.sh
 # === TLS certificates (generate locally with: scripts/generate-certs.sh) ===
 deploy/traefik/certs/*.crt
 deploy/traefik/certs/*.key
+
+# === Personal/local-only docs ===
+docs/RELEASE_TEMPLATE.md
+docs/RETROSPECTIVES.md
+docs/archive/

@@ -10,7 +10,7 @@
 
 **A Kubernetes sandbox for practicing cloud-native failure patterns before they hit production.**
 
-This project gives you a realistic microservices environment — FastAPI, PostgreSQL, Redis — with observability, rate limiting, and resilience policies already configured. The idea is simple: break things here on purpose,
+This project gives you a realistic microservices environment — FastAPI, Redis — with observability, rate limiting, and resilience policies already configured. The idea is simple: break things here on purpose,
 learn how they fail, and carry that knowledge to production. Not a toy demo. Not a tutorial app.
 A working lab you can actually deploy and run experiments on.
 
@@ -89,40 +89,7 @@ For minikube/kind, custom values, and troubleshooting: [docs/DEPLOYMENT.md](docs
 
 ---
 
-## Architecture
-
-```
-        User / Browser
-               │
-               ▼
-       ┌──────────────┐
-       │   Traefik    │  ← HTTPS ingress (TLS termination)
-       └──────┬───────┘
-              │
-              ▼
-       ┌──────────────┐
-       │    Envoy     │  ← front-proxy: retry, timeout, circuit breaker
-       └──────┬───────┘
-              │
-         ┌────┴────┐
-         ▼         ▼
-  ┌───────────┐ ┌───────────┐
-  │    API    │ │  Payments │
-  │ :8000     │ │ :8001     │
-  └─────┬─────┘ └────┬──────┘
-        └──────┬──────┘
-               │
-        ┌──────┴───────┐
-        ▼              ▼
-  ┌───────────┐  ┌───────────┐
-  │PostgreSQL │  │  Redis    │
-  └───────────┘  └───────────┘
-```
-
-Envoy sits between the ingress and your services and handles the resilience layer: failed requests are
-retried automatically, slow responses get cut off before they cascade, and hosts that start returning
-errors get temporarily ejected from the pool. Rate limiting lives in the API service — per tenant,
-backed by Redis, so it works correctly across replicas.
+See [Architecture](docs/ARCHITECTURE.md) for system design, ADRs, and design patterns.
 
 ---
 
@@ -168,6 +135,9 @@ Requires the Helm deployment to be running (`make helm-up-dev`).
 # Inject failures — Payments returns 500 (triggers outlier ejection)
 ./scripts/fault-inject.sh failure
 
+# Inject slowness — Payments delays 2 seconds (triggers timeouts and retries)
+./scripts/fault-inject.sh slow
+
 # Cleanup all injections
 ./scripts/fault-inject.sh cleanup
 ```
@@ -188,8 +158,8 @@ For step-by-step procedures, expected Grafana graphs, and evidence screenshots:
 
 ```bash
 make install      # install dev dependencies
-make test         # run all tests (requires: make dev)
-make test-unit    # unit tests only (no services needed)
+make test         # run unit tests (no services required)
+make test-all     # run all tests including integration (requires: make dev)
 make lint         # ruff
 make help         # full list of targets
 ```

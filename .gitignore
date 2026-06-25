@@ -269,3 +269,4 @@ deploy/traefik/certs/*.key
 # === Personal/local-only docs ===
 docs/RELEASE_TEMPLATE.md
 docs/RETROSPECTIVES.md
+docs/archive/

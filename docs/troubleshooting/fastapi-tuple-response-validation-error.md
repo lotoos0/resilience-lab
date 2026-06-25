@@ -1,36 +1,46 @@
-# Troubleshooting: FastAPI tuple response causes HTTP 500
+# FastAPI tuple response causes HTTP 500
 
 **Discovered:** 2026-06-06
 **Service:** Payments
 **Fixed in:** `fix(payments): raise HTTPException on missing payment instead of returning tuple`
 
-## Problem
+---
 
-`GET /payments/{id}` returned HTTP 500 instead of HTTP 404 when the payment ID did not exist.
+## What happened
+
+`GET /payments/{id}` returned HTTP 500 instead of HTTP 404 when the payment
+ID didn't exist. The kind of bug that sits quietly in production until
+someone notices the error rate — no alert, no obvious cause, just a generic
+500 that tells the caller nothing.
 
 ## Symptoms
 
 - Test failed with `fastapi.exceptions.ResponseValidationError`.
-- The endpoint returned a tuple:
+- The endpoint was returning a tuple:
 
 ```python
 return {"error": "payment not found"}, 404
 ```
 
-- Users received HTTP 500 with no useful error message.
-- Bug was silent — no test covered the negative path, so it went undetected.
+- Clients received HTTP 500 with no useful error message.
+- Bug was silent — no test covered the negative path, so it went undetected
+  until I added one.
 
-## Root Cause
+## Why it happened
 
-FastAPI does not support Flask-style tuple responses to set the HTTP status code.
+FastAPI is not Flask. `return body, status_code` is a Flask pattern — in
+FastAPI, the returned tuple `(dict, int)` is treated as the response body
+itself, not as body + status code.
 
-The returned tuple `(dict, int)` was treated as the response body. Because the endpoint declared `Dict[str, Any]` as return type, FastAPI response validation failed on the tuple and the request resulted in HTTP 500.
-
-In newer versions of FastAPI the `ResponseValidationError` is raised explicitly. In older versions or when running as a live server, the client simply received HTTP 500 with no indication of the real cause.
+Since the endpoint declared `Dict[str, Any]` as return type, FastAPI's
+response validation choked on the tuple and the request blew up as HTTP 500.
+In newer FastAPI versions the `ResponseValidationError` is raised explicitly;
+in older versions or a live server the client just gets a 500 with no hint
+of the real cause.
 
 ## Fix
 
-Use `HTTPException` for error responses:
+One line — swap the tuple return for `HTTPException`:
 
 ```python
 from fastapi import HTTPException
@@ -38,24 +48,24 @@ from fastapi import HTTPException
 raise HTTPException(status_code=404, detail="payment not found")
 ```
 
-The endpoint now returns:
+The endpoint now does what it should have done from the start:
 
 ```
-GET /payments/{id} -> HTTP 404
-{
-  "detail": "payment not found"
-}
+GET /payments/{id} → HTTP 404
+{"detail": "payment not found"}
 ```
 
-## How It Was Found
+## How I found it
 
-A unit test was added for the negative path (`GET /payments/nonexistent-id`). The `TestClient` raised `ResponseValidationError` directly, making the bug visible in CI.
-
-Without the test, the bug would have remained hidden — HTTP 500 in production, no alert, no obvious cause.
+Added a unit test for the negative path (`GET /payments/nonexistent-id`).
+`TestClient` raised `ResponseValidationError` immediately, making the bug
+impossible to miss. Without the test, this would have kept returning 500 in
+production indefinitely.
 
 ## Prevention
 
-- Never use Flask-style tuple returns in FastAPI — `return body, status_code` does not work.
-- Use `HTTPException` for all error responses.
-- Use `JSONResponse` only when you need full control over headers/body.
-- Always add tests for negative/error paths, not only the happy path.
+- FastAPI is not Flask — `return body, status_code` does not work. Use
+  `HTTPException` for all error responses, `JSONResponse` only when you need
+  full control over headers or body.
+- Always test negative paths. The happy path passing is not proof the error
+  path works — they're separate code branches.

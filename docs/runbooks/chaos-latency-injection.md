@@ -469,8 +469,9 @@ helm upgrade resilience-lab deploy/helm -n resilience-lab -f deploy/helm/values-
 The p95 latency metric (`envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="payments_service"}`)
 measures Envoy's view of upstream request duration to the payments cluster — the full
 round trip from Envoy to payments and back, which includes the injected 300ms.
-Payments does not expose a `/metrics` endpoint in v0.1.0, so there is no direct
-per-pod latency metric from the payments process itself.
+Payments exposes `/metrics` via `prometheus-fastapi-instrumentator`, but those are
+HTTP-level counters — there is no direct per-pod latency metric from the payments
+process itself at the network layer where the delay is injected.
 
 ## Change History
 

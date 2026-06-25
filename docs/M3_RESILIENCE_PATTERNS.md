@@ -1,20 +1,6 @@
-# M3 Resilience Patterns
+# Resilience Patterns
 
-**Resilience Lab - M3 Milestone Documentation**
-
-*Last updated: December 05, 2025*
-
----
-
-## Overview
-
-This document describes the resilience patterns implemented in Milestone M3 (Resilience + Observability). These patterns protect services from cascading failures, resource exhaustion, and traffic spikes.
-
-**M3 Scope (Dec 1-15, 2025):**
-- Rate Limiting (Redis-based per-tenant throttling)
-- Bulkhead Isolation (Envoy circuit breakers)
-- Canary Deployments (progressive traffic shifting)
-- Observability (Prometheus, Grafana, Loki)
+*Reference guide for the resilience patterns implemented in Resilience Lab.*
 
 ---
 
@@ -31,47 +17,44 @@ This document describes the resilience patterns implemented in Milestone M3 (Res
 
 ## Rate Limiting
 
-**Pattern**: Token bucket with sliding window algorithm
-**Implementation**: FastAPI middleware with Redis backend
-**Status**: ✅ **COMPLETE** (DAY19-DAY21)
-
-### What is Rate Limiting?
-
-Rate limiting controls the number of requests a client can make within a time window. This prevents:
-- API abuse and DoS attacks
-- Resource exhaustion from traffic spikes
-- Unfair resource consumption by single tenants
-
-### Implementation Details
-
+**Pattern**: Sliding window with Redis sorted sets
+**Implementation**: FastAPI middleware
 **Location**: `services/api/middleware/rate_limit.py`
 
-**Algorithm**: Sliding window with Redis sorted sets
+### Why bother?
+
+Without rate limiting, one misbehaving tenant firing 10,000 req/s can ruin the day for everyone else. Redis as the backend gives us accurate per-window counting without race conditions — the pipeline of `ZREMRANGEBYSCORE + ZCARD + ZADD + EXPIRE` is effectively atomic at the "won't let more than N requests through" level.
+
+### How it works
+
 ```python
-# Pseudo-code
-window_start = current_time - 60s
-count = ZCOUNT(key, window_start, current_time)
+# All four ops run in a single Redis pipeline (atomic)
+ZREMRANGEBYSCORE(key, 0, window_start)   # trim entries older than window
+count = ZCARD(key)                        # count what's left
+ZADD(key, {uuid: current_time})          # always record this request
+EXPIRE(key, window_seconds)
+
 if count >= 60:
-    return HTTP 429 Too Many Requests
+    return HTTP 429 Too Many Requests    # request was counted, still rejected
 else:
-    ZADD(key, current_time, unique_id)
-    return Allow request
+    return Allow
 ```
 
-**Configuration**:
-- **Max requests**: 60 per minute per tenant
-- **Window**: 60 seconds (sliding)
-- **Storage**: Redis sorted sets with TTL
-- **Tenant identification**: `X-Tenant` header (default: "default")
+**Configuration** (set in `services/api/main.py`):
+- Max requests: **60 per 60 seconds** per tenant
+- Tenant identification: `X-Tenant` header (defaults to `"default"`)
+- Redis key TTL: 60 s — inactive tenants clean themselves up
 
 **Response on limit exceeded**:
 ```json
 {
-  "detail": "rate_limit_exceeded",
-  "error": "Too many requests. Limit: 60 requests per 60 seconds."
+  "error": "rate_limit_exceeded",
+  "message": "Rate limit exceeded for tenant {tenant_id}",
+  "limit": "60 requests per 60s",
+  "tenant": "{tenant_id}"
 }
 ```
-HTTP Status: `429 Too Many Requests`
+HTTP `429 Too Many Requests`
 
 ### Architecture
 
@@ -81,27 +64,16 @@ Client Request
      ▼
 ┌─────────────────────────┐
 │ RateLimitMiddleware     │
-│ ┌─────────────────────┐ │
-│ │ 1. Extract Tenant   │ │ ← X-Tenant header
-│ └──────────┬──────────┘ │
-│            │             │
-│ ┌──────────▼──────────┐ │
-│ │ 2. Check Redis      │ │ ← ZCOUNT sorted set
-│ │    Count requests   │ │
-│ └──────────┬──────────┘ │
-│            │             │
-│       ┌────┴────┐        │
-│       │ > 60?   │        │
-│       └────┬────┘        │
-│            │             │
-│      ┌─────┴─────┐       │
-│      │           │       │
-│    YES          NO       │
-│      │           │       │
-│   ┌──▼──┐    ┌───▼───┐  │
-│   │ 429 │    │ ZADD  │  │ ← Add to sorted set
-│   └─────┘    │ Allow │  │
-│              └───────┘  │
+│                         │
+│  1. Extract X-Tenant    │ ← missing header → falls back to "default"
+│         │               │
+│  2. ZREMRANGEBYSCORE    │ ← trim entries outside window
+│  3. ZCARD               │ ← count remaining (before this request)
+│  4. ZADD + EXPIRE       │ ← always record, even if we'll deny
+│         │               │
+│      count >= 60?       │
+│       ├── YES → 429     │
+│       └── NO  → Allow  │
 └─────────────────────────┘
 ```
 
@@ -109,462 +81,328 @@ Client Request
 
 **Unit tests**: `services/api/tests/test_rate_limit.py`
 
-Test cases:
-- ✅ Requests under limit are allowed (200 OK)
-- ✅ Requests over limit are blocked (429)
-- ✅ Missing X-Tenant header uses "default" tenant
-- ✅ Different tenants have separate limits
+Covered cases:
+- Requests under limit pass through (200 OK)
+- Request #61 gets blocked (429)
+- Missing `X-Tenant` header → defaults to `"default"` tenant
+- Different tenants have separate counters (proper isolation)
 
-**Coverage**: 90%+
-
-### Kubernetes Deployment
-
-**Helm values** (`deploy/helm/charts/api/values.yaml`):
-```yaml
-env:
-  - name: REDIS_HOST
-    value: "redis"
-  - name: REDIS_PORT
-    value: "6379"
-```
-
-**Required**: Redis must be deployed in the same namespace.
+Coverage: **>90%**
 
 ---
 
 ## Bulkhead Pattern
 
-**Pattern**: Resource isolation and connection pooling
+**Pattern**: Resource isolation via connection pool limits
 **Implementation**: Envoy circuit breakers
-**Status**: ✅ **COMPLETE** (DAY21)
-
-### What is Bulkhead?
-
-Bulkhead pattern isolates resources to prevent cascading failures. Named after ship bulkheads that prevent one flooded compartment from sinking the entire vessel.
-
-**Prevents**:
-- Connection pool exhaustion
-- Thread pool starvation
-- Memory exhaustion from unlimited queuing
-- Cascading failures across services
-
-### Implementation Details
-
 **Location**: `deploy/envoy/envoy-config.yaml`
 
-**Configuration for each cluster** (`api_service`, `payments_service`):
+### Why "bulkhead"?
+
+Named after ship bulkheads — if one compartment floods, the rest of the vessel keeps sailing. Same idea here: if one upstream starts responding slowly and accumulates connections, we don't let it drain the entire proxy pool. Without limits, a single slow pod can stall all traffic through Envoy.
+
+### Configuration (both `api_service` and `payments_service` clusters)
+
 ```yaml
 circuit_breakers:
   thresholds:
     - priority: DEFAULT
-      max_connections: 100         # TCP connection pool
-      max_pending_requests: 50     # Request queue limit
-      max_requests: 100            # Concurrent HTTP/2 requests
-      max_retries: 3               # Concurrent retry limit
+      max_connections: 5         # TCP connection pool to backend pods
+      max_pending_requests: 5    # queue depth when no connection is free
+      max_requests: 10           # total concurrent HTTP requests
+      max_retries: 3             # concurrent retry requests (anti-retry-storm)
 ```
 
-### How It Works
+> **On the numbers**: these are intentionally tight, tuned for a dev/minikube environment
+> running 1–2 pods per service. Scale proportionally in production.
+
+### How it works
 
 ```
-                    Envoy Circuit Breaker
-┌──────────────────────────────────────────────────┐
-│                                                  │
-│  ┌────────────────────────────────────────┐     │
-│  │  Connection Pool (max: 100)            │     │
-│  │  ┌───┐ ┌───┐ ┌───┐       ┌───┐        │     │
-│  │  │ 1 │ │ 2 │ │ 3 │  ...  │100│        │     │
-│  │  └───┘ └───┘ └───┘       └───┘        │     │
-│  └────────────────────────────────────────┘     │
-│                                                  │
-│  ┌────────────────────────────────────────┐     │
-│  │  Request Queue (max: 50)               │     │
-│  │  [Req] [Req] [Req] ... [Req]          │     │
-│  └────────────────────────────────────────┘     │
-│                                                  │
-│  ┌────────────────────────────────────────┐     │
-│  │  Active Requests (max: 100)            │     │
-│  │  [HTTP/2 Stream 1] [Stream 2] ...      │     │
-│  └────────────────────────────────────────┘     │
-│                                                  │
-│  ┌────────────────────────────────────────┐     │
-│  │  Retry Budget (max: 3 concurrent)      │     │
-│  │  [Retry 1] [Retry 2] [Retry 3]         │     │
-│  └────────────────────────────────────────┘     │
-│                                                  │
-└──────────────────────────────────────────────────┘
-                      │
-                      ▼
-        ┌─────────────────────────┐
-        │  When limit exceeded:   │
-        │  → HTTP 503 Unavailable │
-        │  → upstream_rq_pending_ │
-        │    overflow (stat)      │
-        └─────────────────────────┘
+                    Envoy — Bulkhead
+┌──────────────────────────────────────────┐
+│  Connection Pool     max: 5              │
+│  [c1] [c2] [c3] [c4] [c5]              │
+│                                          │
+│  Request Queue       max: 5              │
+│  [r1] [r2] [r3] [r4] [r5]              │
+│                                          │
+│  Active Requests     max: 10             │
+│  [req × 10]                              │
+│                                          │
+│  Retry Budget        max: 3 concurrent   │
+│  [retry] [retry] [retry]                 │
+└──────────────────────────────────────────┘
+              │
+              ▼  When any limit is exceeded:
+   HTTP 503 + upstream_rq_pending_overflow++
 ```
 
-### Resource Limits Explained
+### What each parameter does and why
 
-#### 1. max_connections (100)
-- **What**: Maximum TCP connections to backend service
-- **Why**: Prevents connection exhaustion on backend pods
-- **Overflow**: New connections return `503 Service Unavailable`
+| Parameter | Value | What it caps | On overflow |
+|---|---|---|---|
+| `max_connections` | 5 | TCP connections to backend pods | new connections → 503 |
+| `max_pending_requests` | 5 | queue when no free connection | immediate 503 |
+| `max_requests` | 10 | concurrent HTTP streams total | requests enter the queue |
+| `max_retries` | 3 | concurrent retry requests | retry skipped, original error returned |
 
-#### 2. max_pending_requests (50)
-- **What**: Maximum requests waiting in queue for available connection
-- **Why**: Prevents unbounded memory growth from queueing
-- **Overflow**: New requests immediately rejected with `503`
-
-#### 3. max_requests (100)
-- **What**: Maximum concurrent HTTP/2 requests (across all connections)
-- **Why**: Limits total load on backend regardless of connection count
-- **Overflow**: Requests queue up (until max_pending_requests hit)
-
-#### 4. max_retries (3)
-- **What**: Maximum concurrent retry requests across all clients
-- **Why**: Prevents retry storms during outages
-- **Overflow**: Retries skipped, original error returned
-
-### Benefits
-
-**Resource Isolation**:
-- API service failure doesn't affect Payments service
-- One tenant's traffic spike can't exhaust all connections
-
-**Graceful Degradation**:
-- `503` error is better than cascading timeouts
-- Fast failure (immediate rejection vs. queue timeout)
-
-**Predictable Performance**:
-- Bounded resource usage
-- No "mystery" slowdowns from queue buildup
-
-### Monitoring
-
-**Envoy Admin Interface** (port 9901):
-```bash
-# View circuit breaker stats
-curl http://localhost:9901/stats | grep circuit_breaker
-
-# Example output:
-cluster.api_service.circuit_breakers.default.cx_active: 42
-cluster.api_service.circuit_breakers.default.cx_open: 100
-cluster.api_service.circuit_breakers.default.rq_active: 87
-cluster.api_service.circuit_breakers.default.rq_pending: 12
-cluster.api_service.circuit_breakers.default.rq_pending_overflow: 5
-cluster.api_service.circuit_breakers.default.rq_retry_open: 100
-```
-
-**Key Metrics**:
-- `cx_active` - Current active connections
-- `cx_open` - Max connections allowed (100)
-- `rq_active` - Current active requests
-- `rq_pending` - Requests in queue
-- `rq_pending_overflow` - **Rejected requests** (circuit open)
-- `rq_retry_open` - Max retries allowed
-
-**Alert on**:
-- `rq_pending_overflow > 0` - Circuit breaker tripping
-- `rq_pending > 40` - Queue filling up (80% of max_pending_requests)
+`max_retries: 3` is the anti-retry-storm guard. Imagine 50 clients each retrying twice after
+a 5xx — that's 150 concurrent retries hitting an already struggling upstream. The cap keeps
+retries from becoming the cause of the outage they're trying to recover from.
 
 ---
 
 ## Circuit Breaker Pattern
 
-**Pattern**: Outlier detection and health-based ejection
+**Pattern**: Passive health checking via outlier detection
 **Implementation**: Envoy outlier detection
-**Status**: ✅ **COMPLETE** (M2)
-
-### What is Circuit Breaker?
-
-Circuit breaker prevents calls to unhealthy services, allowing them time to recover. Similar to electrical circuit breakers that "open" to prevent damage.
-
-**States**:
-- **CLOSED**: Normal operation, requests flow through
-- **OPEN**: Too many failures, requests immediately rejected
-- **HALF-OPEN**: Testing recovery, limited requests allowed
-
-### Implementation Details
-
 **Location**: `deploy/envoy/envoy-config.yaml`
 
-**Configuration** (already exists from M2):
-```yaml
-outlier_detection:
-  consecutive_5xx: 3                # Trigger after 3 consecutive 5xx
-  interval: 10s                     # Detection interval
-  base_ejection_time: 30s           # Eject unhealthy host for 30s
-  max_ejection_percent: 50          # Max 50% of hosts can be ejected
-  enforcing_consecutive_5xx: 100    # 100% enforcement probability
-  enforcing_success_rate: 100       # Enforce success rate ejection
-  success_rate_minimum_hosts: 2     # Min hosts for success rate calc
-  success_rate_request_volume: 10   # Min requests for success rate
-  success_rate_stdev_factor: 1900   # Outlier threshold (1.9 std dev)
-```
+### Bulkhead vs. Circuit Breaker — what's the difference?
 
-### How It Works
-
-```
-Backend Pods: [Pod-A] [Pod-B] [Pod-C]
-                 │       │       │
-                 ▼       ▼       ▼
-            ┌────────────────────────┐
-            │  Envoy Load Balancer   │
-            │  (Round Robin)         │
-            └───────────┬────────────┘
-                        │
-         ┌──────────────┼──────────────┐
-         │              │              │
-         ▼              ▼              ▼
-    [Pod-A]        [Pod-B]        [Pod-C]
-      OK             5xx            OK
-                      │
-                      ▼
-            ┌─────────────────────┐
-            │ Consecutive 5xx = 1 │
-            └─────────────────────┘
-                      │
-                  (2 more 5xx)
-                      │
-                      ▼
-            ┌─────────────────────┐
-            │ Consecutive 5xx = 3 │
-            │ → EJECT Pod-B       │
-            │   for 30s           │
-            └─────────────────────┘
-                      │
-                      ▼
-         ┌────────────────────────┐
-         │  Active Pods:          │
-         │  [Pod-A] [Pod-C]       │
-         │  Ejected: [Pod-B]      │
-         └────────────────────────┘
-                      │
-                  (30s later)
-                      │
-                      ▼
-         ┌────────────────────────┐
-         │  Test Pod-B health     │
-         │  If OK → Re-add        │
-         └────────────────────────┘
-```
-
-### Difference: Bulkhead vs Circuit Breaker
+A common source of confusion, so let's be explicit:
 
 | Feature | Bulkhead | Circuit Breaker |
-|---------|----------|-----------------|
-| **Purpose** | Resource isolation | Fault isolation |
-| **Triggers on** | Resource limits | Error rate |
-| **Action** | Reject new requests | Stop calling unhealthy service |
+|---|---|---|
+| **Purpose** | resource isolation | fault isolation |
+| **Triggers on** | resource limits exceeded | error rate (5xx responses) |
+| **Action** | reject new requests | eject unhealthy host from pool |
 | **Response** | HTTP 503 (queue full) | HTTP 503 (host ejected) |
-| **Recovery** | Immediate (when queue clears) | Gradual (ejection time) |
-| **Protects** | Current service from overload | Downstream service from traffic |
+| **Recovery** | immediate (when load drops) | gradual (after ejection time) |
+| **Protects** | current service from overload | downstream from a flood of bad requests |
 
-**Used together**: Bulkhead limits connections + Circuit breaker ejects unhealthy hosts.
+They work together: bulkhead caps connections, circuit breaker removes broken pods from rotation.
+
+### Configuration (both clusters)
+
+```yaml
+outlier_detection:
+  consecutive_5xx: 3              # eject after 3 consecutive 5xx from a host
+  interval: 10s                   # detection scan interval
+  base_ejection_time: 30s         # ejection duration (doubles on repeat offenders)
+  max_ejection_percent: 50        # at most 50% of hosts ejected at once
+  enforcing_consecutive_5xx: 100  # always enforce (100% probability)
+  enforcing_success_rate: 100     # also enforce success-rate-based ejection
+  success_rate_minimum_hosts: 2   # need at least 2 hosts to compare success rates
+  success_rate_request_volume: 10 # need at least 10 req/host to calculate SR
+  success_rate_stdev_factor: 1900 # eject if SR < avg − 1.9σ
+```
+
+`max_ejection_percent: 50` is the key safety valve. With 2 pods, Envoy will eject at most 1.
+Without it: both pods ejected → total outage. Set it too low and a genuinely broken pod stays
+in rotation anyway.
+
+### How it works
+
+```
+Pods: [Pod-A ✓] [Pod-B ✗] [Pod-C ✓]
+               │
+    Envoy round-robins traffic
+               │
+    Pod-B returns 5xx — once, twice, three times
+               │
+    consecutive_5xx = 3 → EJECT Pod-B for 30s
+               │
+Active pool:  [Pod-A ✓] [Pod-C ✓]
+Ejected:      [Pod-B]   ← probed after 30s; re-added if healthy
+```
 
 ---
 
 ## Combined Resilience Stack
 
-Resilience Lab uses **layered resilience patterns** for defense in depth:
+Every request passes through all four defense layers in order:
 
 ```
 Client Request
      │
      ▼
 ┌─────────────────────────────────────┐
-│ 1️⃣ Rate Limiting (FastAPI)          │  ← Protect from traffic spikes
-│    - 60 req/min per tenant          │
-│    - Redis sliding window           │
-└──────────────┬──────────────────────┘
-               │
-               ▼
+│ 1. Rate Limiting  (FastAPI)         │  ← 60 req/min/tenant → 429 on excess
+└──────────────────┬──────────────────┘
+                   │
+                   ▼
 ┌─────────────────────────────────────┐
-│ 2️⃣ Ingress (Traefik)                 │  ← TLS termination, routing
-│    - HTTPS with self-signed cert    │
-└──────────────┬──────────────────────┘
-               │
-               ▼
+│ 2. Ingress  (Traefik)               │  ← TLS termination, routes /api/* → Envoy
+└──────────────────┬──────────────────┘
+                   │
+                   ▼
 ┌─────────────────────────────────────┐
-│ 3️⃣ Envoy Proxy (Resilience Layer)   │
-│ ┌─────────────────────────────────┐ │
-│ │ Bulkhead (Circuit Breakers)     │ │  ← Resource limits
-│ │ - max_connections: 100          │ │
-│ │ - max_pending_requests: 50      │ │
-│ └─────────────────────────────────┘ │
-│ ┌─────────────────────────────────┐ │
-│ │ Outlier Detection               │ │  ← Health-based ejection
-│ │ - consecutive_5xx: 3            │ │
-│ │ - base_ejection_time: 30s       │ │
-│ └─────────────────────────────────┘ │
-│ ┌─────────────────────────────────┐ │
-│ │ Retry Policy                    │ │  ← Transient failure handling
-│ │ - num_retries: 2                │ │
-│ │ - per_try_timeout: 2s           │ │
-│ └─────────────────────────────────┘ │
-│ ┌─────────────────────────────────┐ │
-│ │ Timeout Policy                  │ │  ← Request deadline
-│ │ - request_timeout: 10s          │ │
-│ │ - idle_timeout: 60s             │ │
-│ └─────────────────────────────────┘ │
-└──────────────┬──────────────────────┘
-               │
-               ▼
+│ 3. Envoy Proxy  (resilience layers) │
+│                                     │
+│  Bulkhead (circuit_breakers)        │  ← max 5 conn / 5 pending / 10 req
+│  Outlier Detection                  │  ← eject after 3× 5xx, max 50% of hosts
+│  Retry Policy                       │  ← 2 retries, 200ms per-try timeout
+│  Timeout Policy                     │  ← 2s route timeout, 60s idle
+└──────────────────┬──────────────────┘
+                   │
+                   ▼
 ┌─────────────────────────────────────┐
-│ 4️⃣ Backend Services                 │
-│    - API (FastAPI)                  │
-│    - Payments (FastAPI)             │
+│ 4. Backend Services                 │
+│    API (FastAPI :8000)              │
+│    Payments (FastAPI :8001)         │
 └─────────────────────────────────────┘
 ```
 
-### Failure Scenarios Covered
+### Failure scenarios covered
 
 | Scenario | Protection | Response |
-|----------|-----------|----------|
-| Traffic spike (1000 req/s) | Rate Limiting | HTTP 429 (excess blocked) |
-| Connection pool exhausted | Bulkhead | HTTP 503 (new conns rejected) |
-| Backend pod crashes | Retry Policy | Retry on healthy pod (2 attempts) |
-| Backend returns 5xx errors | Outlier Detection | Eject unhealthy pod for 30s |
-| Slow backend response | Timeout Policy | Abort after 10s |
-| Network partition | Retry + Timeout | Fast failure (2s per-try) |
+|---|---|---|
+| Traffic spike (>60 req/min/tenant) | Rate Limiting | HTTP 429 |
+| Connection pool exhausted | Bulkhead | HTTP 503 |
+| Backend pod crashes | Retry Policy | retry on healthy pod (2 attempts) |
+| Backend returns 5xx × 3 | Outlier Detection | eject pod for 30s |
+| Slow backend (>200ms) | Timeout Policy | per-try abort at 200ms |
+| Retry storm | Bulkhead `max_retries: 3` | max 3 concurrent retries |
 
 ---
 
 ## Testing Resilience
 
-### Fault Injection Scripts
+### Fault injection scripts
 
 **Location**: `scripts/fault-inject.sh`
 
-**Test modes**:
 ```bash
-# 1. Inject 500 errors (test outlier ejection)
+# Inject 500 errors — exercises outlier detection
 ./scripts/fault-inject.sh failure
 
-# 2. Inject 2s delay (test timeout policy)
+# Inject 2s delay — per-try timeout (200ms) fires, expect 504s
 ./scripts/fault-inject.sh slow
 
-# 3. Kill random pod (test retry + auto-recovery)
+# Kill a random pod — exercises retry + auto-recovery
 ./scripts/fault-inject.sh kill
 
-# 4. Cleanup all injections
+# Clean up all injections
 ./scripts/fault-inject.sh cleanup
 ```
 
-### Monitoring During Tests
+### Monitoring during tests
 
-**Port-forward Envoy admin**:
 ```bash
+# Port-forward Envoy admin interface
 kubectl port-forward -n resilience-lab svc/envoy-proxy 9901:9901
+
+# Outlier detection — ejection events
+curl -s http://localhost:9901/stats | grep outlier_detection
+
+# Bulkhead — how many requests got rejected
+curl -s http://localhost:9901/stats | grep rq_pending_overflow
+
+# Retry stats
+curl -s http://localhost:9901/stats | grep upstream_rq_retry
+
+# Per-try timeouts (should spike during slow mode)
+curl -s http://localhost:9901/stats | grep per_try_timeout
 ```
 
-**Check stats**:
+### Test rate limiting
+
 ```bash
-# Outlier detection
-curl http://localhost:9901/stats | grep outlier
-# Expected: ejections_enforced_total: 1 (after failure mode)
-
-# Circuit breakers
-curl http://localhost:9901/stats | grep circuit_breaker
-# Expected: rq_pending_overflow > 0 (during load spike)
-
-# Retries
-curl http://localhost:9901/stats | grep retry
-# Expected: upstream_rq_retry: 2+ (during kill mode)
-
-# Timeouts
-curl http://localhost:9901/stats | grep timeout
-# Expected: upstream_rq_timeout: 1+ (during slow mode)
-```
-
-### Load Testing
-
-**Test rate limiting**:
-```bash
-# Port-forward Traefik
 kubectl port-forward -n resilience-lab svc/traefik 8080:80
 
-# Send 65 requests in 10s (should hit limit)
+# Fire 65 requests — 60 should pass, 5 should get 429
+# Note: must use a rate-limited path. /api/healthz is rewritten to /healthz
+# by Envoy and skipped by the middleware. Use /api/ (→ GET /) instead.
 for i in {1..65}; do
-  curl -s -o /dev/null -w "%{http_code}\n" \
-    -H "X-Tenant: test-tenant" \
-    -H "Host: resilience-lab.local" \
-    http://localhost:8080/api/healthz
+    curl -s -o /dev/null -w "%{http_code}\n" \
+        -H "X-Tenant: test-tenant" \
+        -H "Host: resilience-lab.local" \
+        http://localhost:8080/api/
 done | sort | uniq -c
-
-# Expected output:
-# 60 200  ← Allowed
-#  5 429  ← Rate limited
+# Expected:
+# 60 200
+#  5 429
 ```
 
-**Test bulkhead (connection pool exhaustion)**:
+### Test bulkhead (connection pool exhaustion)
+
 ```bash
-# Use Apache Bench (ab) or wrk to generate load
-ab -n 1000 -c 150 http://localhost:8080/api/healthz
+# 20 concurrent requests will exceed max_connections=5
+ab -n 200 -c 20 http://localhost:8080/api/healthz
 
-# Monitor Envoy stats
+# Watch overflow counter in real time
 watch -n 1 'curl -s http://localhost:9901/stats | grep rq_pending_overflow'
-
-# Expected: rq_pending_overflow > 0 when 150 concurrent > 100 max_connections
+# Expected: rq_pending_overflow > 0 when concurrency > 5
 ```
 
 ---
 
 ## Monitoring and Metrics
 
-### Key Metrics to Track
+### Rate Limiting (application-level)
 
-**Rate Limiting** (Application-level):
-- `rate_limit_allowed_total` - Requests allowed
-- `rate_limit_blocked_total` - Requests blocked (429)
-- `rate_limit_errors_total` - Redis errors
+| Metric | Meaning |
+|---|---|
+| `rl_allowed_total` | requests passed through (labeled by tenant) |
+| `rl_denied_total` | requests rejected with 429 (labeled by tenant) |
 
-**Bulkhead** (Envoy):
-- `circuit_breakers.default.cx_active` - Active connections
-- `circuit_breakers.default.rq_pending` - Queued requests
-- `circuit_breakers.default.rq_pending_overflow` - **Rejected requests**
+### Bulkhead (Envoy)
 
-**Circuit Breaker** (Envoy):
-- `outlier_detection.ejections_active` - Currently ejected hosts
-- `outlier_detection.ejections_enforced_total` - Total ejections
-- `outlier_detection.ejections_consecutive_5xx` - Ejections due to errors
+| Metric | Meaning |
+|---|---|
+| `circuit_breakers.default.cx_active` | active connections (cap: 5) |
+| `circuit_breakers.default.rq_pending` | queued requests (cap: 5) |
+| `circuit_breakers.default.rq_pending_overflow` | **rejected requests** — the one to alert on |
 
-**Retries** (Envoy):
-- `upstream_rq_retry` - Total retry attempts
-- `upstream_rq_retry_success` - Successful retries
-- `upstream_rq_retry_overflow` - Retries skipped (max_retries hit)
+Alert on `rq_pending_overflow > 0` — it means the bulkhead is actually doing work.
 
-**Timeouts** (Envoy):
-- `upstream_rq_timeout` - Requests timed out
-- `upstream_rq_per_try_timeout` - Per-try timeouts
+### Circuit Breaker (Envoy)
 
-### Grafana Dashboards (Future - M3 DAY22+)
+| Metric | Meaning |
+|---|---|
+| `outlier_detection.ejections_active` | currently ejected hosts |
+| `outlier_detection.ejections_enforced_total` | total ejections since start |
+| `outlier_detection.ejections_consecutive_5xx` | ejections triggered by error streaks |
 
-**Planned dashboards**:
-1. **Resilience Overview**: Rate limits, circuit breakers, retries
-2. **Envoy Metrics**: Connection pools, ejections, timeouts
-3. **Application Health**: Request rates, error rates, latencies
+### Retry / Timeout (Envoy)
+
+| Metric | Meaning |
+|---|---|
+| `upstream_rq_retry` | total retry attempts |
+| `upstream_rq_retry_success` | retries that recovered successfully |
+| `upstream_rq_retry_overflow` | retries skipped because `max_retries` was hit |
+| `upstream_rq_timeout` | request-level timeouts |
+| `upstream_rq_per_try_timeout` | per-try timeouts (200ms threshold) |
+
+### Grafana Dashboards
+
+Two dashboards deployed as Helm ConfigMaps:
+
+- **Resilience Dashboard** (`grafana-dashboard-resilience.yaml`) — RPS, error rate, retries, ejections, p95/p99 latency
+- **System Overview** (`grafana-dashboard-system-overview.yaml`) — cluster health, pod resource usage
 
 ---
 
 ## References
 
-**Resilience Patterns**:
-- [Circuit Breaker Pattern](https://microservices.io/patterns/reliability/circuit-breaker.html)
-- [Bulkhead Pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/bulkhead)
-- [Rate Limiting Algorithms](https://en.wikipedia.org/wiki/Rate_limiting)
-
-**Envoy Documentation**:
+**Envoy documentation**:
 - [Circuit Breaking](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking)
 - [Outlier Detection](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/outlier)
-- [Retry Policy](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_routing#retry-semantics)
+- [Retry Semantics](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_routing#retry-semantics)
 
-**Internal Docs**:
-- [M2 Fault Tests](M2_FAULT_TESTS.md) - M2 resilience testing
-- [Architecture](ARCHITECTURE.md) - System architecture overview
-- [Deployment](DEPLOYMENT.md) - Kubernetes deployment guide
+**Internal docs**:
+- [Architecture](ARCHITECTURE.md) — system architecture overview
+- [M2 Fault Tests](M2_FAULT_TESTS.md) — raw test data from resilience experiments
+- [Deployment](DEPLOYMENT.md) — how to get this running
 
 ---
 
-**Last updated**: December 05, 2025
-**Milestone**: M3 (Resilience + Observability)
-**Status**: In Progress (DAY 5/15)
+## What changed in this document
+
+The original M3 doc was written mid-milestone (DAY 5/15) and never updated after the implementation
+settled. This revision syncs it against the actual code and config. Here's what was wrong and why
+it matters:
+
+| # | Severity | What was wrong | What it is now |
+|---|---|---|---|
+| 1 | High | Rate-limit test used `/api/healthz` — Envoy rewrites it to `/healthz`, which is in `excluded_paths`. The 429s would never appear. | Changed to `/api/` (routes to `GET /`, not excluded) |
+| 2 | High | Response JSON showed `detail` + one `error` string. Actual middleware returns `error`, `message`, `limit`, `tenant` (4 fields). | Updated to match `rate_limit.py:68–75` |
+| 3 | Medium | Pseudocode used `ZCOUNT`. Actual pipeline: `ZREMRANGEBYSCORE` → `ZCARD` → `ZADD` → `EXPIRE`. Also: `ZADD` runs unconditionally — denied requests are counted too. | Pseudocode and architecture diagram rewritten |
+| 4 | Medium | Metric names `rate_limit_allowed_total` / `rate_limit_blocked_total` / `rate_limit_errors_total` don't exist. Actual counters: `rl_allowed_total` / `rl_denied_total` (labeled by tenant). | Table corrected; non-existent error metric removed |
+| 5 | Low | For-loop in `bash` block used fish syntax (`for i in (seq…) / end`). | Replaced with `for i in {1..65}; do … done` |
+
+Net diff from original: **−162 lines** (570 → 408), `+237 / −399` in raw diff. Driven by
+removing the stale M3 milestone header, schedule table, and "Future" Grafana placeholder.
+Content that was wrong is fixed; content that was just outdated is gone.

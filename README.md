@@ -1,8 +1,13 @@
+<div align="center">
+
+[![CI](https://img.shields.io/github/actions/workflow/status/lotoos0/resilience-lab/ci.yml?branch=main&label=CI&style=for-the-badge)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
+[![CD](https://img.shields.io/github/actions/workflow/status/lotoos0/resilience-lab/cd.yml?branch=main&label=CD&style=for-the-badge)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
+[![Security](https://img.shields.io/badge/security-Trivy-blue?style=for-the-badge)](https://github.com/lotoos0/resilience-lab/security/code-scanning)
+
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![CI](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
-[![CD](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml/badge.svg)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
 [![codecov](https://codecov.io/gh/lotoos0/resilience-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/lotoos0/resilience-lab)
-[![Security](https://img.shields.io/badge/security-Trivy-blue)](https://github.com/lotoos0/resilience-lab/security/code-scanning)
+
+</div>
 
 ![Resilience Lab banner](docs/img/resilience_lab_banner.gif)
 
@@ -10,7 +15,7 @@
 
 **A Kubernetes sandbox for practicing cloud-native failure patterns before they hit production.**
 
-This project gives you a realistic microservices environment — FastAPI, PostgreSQL, Redis — with observability, rate limiting, and resilience policies already configured. The idea is simple: break things here on purpose,
+This project gives you a realistic microservices environment — FastAPI, Redis — with observability, rate limiting, and resilience policies already configured. The idea is simple: break things here on purpose,
 learn how they fail, and carry that knowledge to production. Not a toy demo. Not a tutorial app.
 A working lab you can actually deploy and run experiments on.
 
@@ -89,46 +94,14 @@ For minikube/kind, custom values, and troubleshooting: [docs/DEPLOYMENT.md](docs
 
 ---
 
-## Architecture
-
-```
-        User / Browser
-               │
-               ▼
-       ┌──────────────┐
-       │   Traefik    │  ← HTTPS ingress (TLS termination)
-       └──────┬───────┘
-              │
-              ▼
-       ┌──────────────┐
-       │    Envoy     │  ← front-proxy: retry, timeout, circuit breaker
-       └──────┬───────┘
-              │
-         ┌────┴────┐
-         ▼         ▼
-  ┌───────────┐ ┌───────────┐
-  │    API    │ │  Payments │
-  │ :8000     │ │ :8001     │
-  └─────┬─────┘ └────┬──────┘
-        └──────┬──────┘
-               │
-        ┌──────┴───────┐
-        ▼              ▼
-  ┌───────────┐  ┌───────────┐
-  │PostgreSQL │  │  Redis    │
-  └───────────┘  └───────────┘
-```
-
-Envoy sits between the ingress and your services and handles the resilience layer: failed requests are
-retried automatically, slow responses get cut off before they cascade, and hosts that start returning
-errors get temporarily ejected from the pool. Rate limiting lives in the API service — per tenant,
-backed by Redis, so it works correctly across replicas.
+See [Architecture](docs/ARCHITECTURE.md) for system design, ADRs, and design patterns.
 
 ---
 
-## Current state — preparing v0.1.0
+## Current state — v0.1.0 released
 
-M0–M3 complete. The full stack is working and validated.
+v0.1.0 is the first full Resilience Lab release. M0–M3 are complete, and the
+full stack is working and validated end to end.
 
 **Resilience primitives:**
 - ✅ Rate limiting — Redis-backed, per-tenant, k6 validated
@@ -147,7 +120,9 @@ M0–M3 complete. The full stack is working and validated.
 - ✅ Pod kill — auto-recovery ~15s, HPA/PDB behavior documented
 - ✅ Runbooks: chaos-pod-kill, chaos-latency-injection, rollback-vs-recover
 
-Next: release notes, CHANGELOG, merge to main, tag **v0.1.0**.
+Release notes: [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)
+
+Next: post-release cleanup, documentation polish, and planning the post-v0.1.0 backlog.
 
 ---
 
@@ -164,6 +139,9 @@ Requires the Helm deployment to be running (`make helm-up-dev`).
 
 # Inject failures — Payments returns 500 (triggers outlier ejection)
 ./scripts/fault-inject.sh failure
+
+# Inject slowness — Payments delays 2 seconds (triggers timeouts and retries)
+./scripts/fault-inject.sh slow
 
 # Cleanup all injections
 ./scripts/fault-inject.sh cleanup
@@ -185,8 +163,8 @@ For step-by-step procedures, expected Grafana graphs, and evidence screenshots:
 
 ```bash
 make install      # install dev dependencies
-make test         # run all tests (requires: make dev)
-make test-unit    # unit tests only (no services needed)
+make test         # run unit tests (no services required)
+make test-all     # run all tests including integration (requires: make dev)
 make lint         # ruff
 make help         # full list of targets
 ```

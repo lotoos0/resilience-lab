@@ -40,7 +40,7 @@ What's wired up and working in v0.1.0:
 Planned but not yet done:
 
 - OpenTelemetry tracing baseline: issue `#60`
-- Resilience dashboard panels: issues `#36`, `#37`, `#50`
+- Resilience dashboard panels: issue `#50`
 - Advanced multi-window burn-rate SLO alerting: post-v0.1.0 backlog
 
 ---

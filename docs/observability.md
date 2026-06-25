@@ -1,6 +1,6 @@
 # Observability
 
-*Last updated: 2026-06-25*
+_Last updated: 2026-06-25_
 
 If something is broken and you don't know why, this is the right document. It covers
 what Prometheus scrapes, where dashboards live, which alerts exist, and how to watch
@@ -49,7 +49,7 @@ Planned but not yet done:
 ## Maintainer Note
 
 This page is meant to be the observability front door, not a museum of every
-incident we survived. The detailed war stories live in runbooks; this file keeps
+incident I've survived. The detailed war stories live in runbooks; this file keeps
 the current map: what exists, where it is wired, and how to verify it without
 digging through five tabs while the cluster is doing interpretive dance.
 
@@ -62,14 +62,6 @@ Current inventory:
 - 2 Grafana dashboards: System Overview, Traffic & Latency
 - 2 log components: Loki and Promtail
 - 3 linked chaos runbooks for pod kill, latency injection, and rollback/recovery
-
-Cleanup rationale for this revision:
-
-- Removed 1 temporary changelog section because it explained the edit history more
-  than the operating model.
-- Corrected 2 Loki datasource statements so the doc matches `deploy/loki/values.yaml`.
-- Added 2 Grafana verification commands: password lookup and port-forward.
-- Tightened 1 alert description so the tone stays friendly, but still operational.
 
 ---
 
@@ -416,12 +408,12 @@ LogQL to correlate payments logs during injection:
 
 Open **"Resilience Lab – Traffic & Latency"** during any chaos experiment:
 
-| Panel | Expected behaviour during chaos |
-|-------|--------------------------------|
-| p95 Latency | Spikes to 300ms+ during latency injection; normal during pod kill |
-| Envoy Retries | Rises during latency injection if timeout triggers retries |
-| Outlier Ejections | Should remain 0 (payments recovers before ejection threshold) |
-| HTTP Status Codes | No spike in 5xx during pod kill (Envoy routes around dead pod) |
+| Panel             | Expected behaviour during chaos                                   |
+| ----------------- | ----------------------------------------------------------------- |
+| p95 Latency       | Spikes to 300ms+ during latency injection; normal during pod kill |
+| Envoy Retries     | Rises during latency injection if timeout triggers retries        |
+| Outlier Ejections | Should remain 0 (payments recovers before ejection threshold)     |
+| HTTP Status Codes | No spike in 5xx during pod kill (Envoy routes around dead pod)    |
 
 ### Evidence Screenshots
 

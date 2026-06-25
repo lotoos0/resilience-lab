@@ -203,6 +203,10 @@ After 3 consecutive 5xx responses in a 10s window, the upstream host is ejected 
 30s. At most half the cluster is ejected at once — so one bad pod doesn't take the
 whole service down.
 
+Outlier detection requires the upstream service to use a **headless Service**
+(`clusterIP: None`). Without it, Envoy sees only the ClusterIP — a single virtual
+address — and cannot distinguish individual pod endpoints to eject.
+
 ### Traefik (Ingress)
 
 TLS termination and IngressRoute definition. Routes `/api/*` → Envoy. The cert
@@ -226,6 +230,9 @@ Default posture: **deny all ingress**. Everything is whitelisted explicitly.
 Why this matters: default-deny forces me to be explicit about who talks to whom.
 It catches "I accidentally wired Payments directly to Redis" before it becomes a
 production incident.
+
+`netpol-allow-essentials` is non-negotiable: default-deny blocks DNS resolution
+(UDP/TCP port 53 to kube-dns), which silently breaks all service discovery if omitted.
 
 ---
 

@@ -11,6 +11,7 @@ the system fall over and recover during chaos experiments.
 ## Table of Contents
 
 - [Current Scope](#current-scope)
+- [Maintainer Note](#maintainer-note)
 - [Metrics Endpoints](#metrics-endpoints)
 - [Logging (Loki + Promtail)](#logging-loki--promtail)
 - [Grafana Dashboards](#grafana-dashboards)
@@ -20,7 +21,6 @@ the system fall over and recover during chaos experiments.
 - [Quick Verification](#quick-verification)
 - [Chaos Observability](#chaos-observability)
 - [Troubleshooting](#troubleshooting)
-- [What changed in this document](#what-changed-in-this-document)
 
 ---
 
@@ -35,13 +35,41 @@ What's wired up and working in v0.1.0:
 - 14 recording rules — Envoy, API, rate-limit, and pod availability metrics
 - 3 alert rules: `HighErrorRate`, `APIDown`, `PrometheusTargetDown`
 - 2 Grafana dashboards: System Overview and Traffic & Latency
-- Loki + Promtail log aggregation, auto-provisioned Grafana datasource
+- Loki + Promtail log aggregation, browsable through Grafana when a Loki datasource
+  is configured
 
 Planned but not yet done:
 
 - OpenTelemetry tracing baseline: issue `#60`
 - Resilience dashboard panels: issue `#50`
 - Advanced multi-window burn-rate SLO alerting: post-v0.1.0 backlog
+
+---
+
+## Maintainer Note
+
+This page is meant to be the observability front door, not a museum of every
+incident we survived. The detailed war stories live in runbooks; this file keeps
+the current map: what exists, where it is wired, and how to verify it without
+digging through five tabs while the cluster is doing interpretive dance.
+
+Current inventory:
+
+- 3 scrape endpoints: API `/metrics`, Payments `/metrics`, Envoy `/stats/prometheus`
+- 3 ServiceMonitors: API, Payments, Envoy
+- 14 recording rules: 7 Envoy, 4 API/rate-limit, 3 availability
+- 3 alert rules: `HighErrorRate`, `APIDown`, `PrometheusTargetDown`
+- 2 Grafana dashboards: System Overview, Traffic & Latency
+- 2 log components: Loki and Promtail
+- 3 linked chaos runbooks for pod kill, latency injection, and rollback/recovery
+
+Cleanup rationale for this revision:
+
+- Removed 1 temporary changelog section because it explained the edit history more
+  than the operating model.
+- Corrected 2 Loki datasource statements so the doc matches `deploy/loki/values.yaml`.
+- Added 2 Grafana verification commands: password lookup and port-forward.
+- Tightened 1 alert description so the tone stays friendly, but still operational.
 
 ---
 
@@ -100,8 +128,9 @@ Grafana **Explore**.
   bundles Loki and Promtail in a single release.
 - Values: `deploy/loki/values.yaml` (~7 day retention, sized for a single-node
   minikube lab).
-- Auto-provisions a Grafana datasource named **Loki** (`http://loki:3100`) via the
-  same sidecar mechanism as Prometheus/Alertmanager — no extra manifest needed.
+- Grafana already comes from kube-prometheus-stack; the Loki chart does not deploy a
+  second Grafana. If **Explore** does not show a **Loki** datasource, add one that
+  points at `http://loki:3100`.
 
 **Install/upgrade:**
 
@@ -257,8 +286,8 @@ kubectl describe prometheusrule resilience-lab-rules -n monitoring
 
 ## Alert Rules
 
-The v0.1.0 alert baseline is intentionally small — three rules that cover the cases
-most likely to page someone at 3am.
+The v0.1.0 alert baseline is intentionally small — three rules that cover the most
+actionable lab failures.
 
 ### HighErrorRate
 
@@ -316,6 +345,8 @@ check Promtail pods in `monitoring` and verify the `resilience-lab` namespace la
 ### Grafana dashboards
 
 ```bash
+kubectl get secret -n monitoring prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 -d; echo
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:3000
 curl -u admin:<password from Secret prometheus-grafana> http://localhost:3000/api/search
 ```
 
@@ -426,19 +457,3 @@ kubectl get netpol -n resilience-lab
 Common causes: NetworkPolicy blocking Prometheus from scraping; ServiceMonitor selector
 not matching service labels; Prometheus release label not matching the
 kube-prometheus-stack selector.
-
----
-
-## What changed in this document
-
-The original doc had three factual errors:
-
-| # | Severity | What was wrong | What it is now |
-|---|---|---|---|
-| 1 | High | "Payments does not expose /metrics yet" listed as a known limitation | Payments has `Instrumentator().instrument(app).expose(app, endpoint="/metrics")` at `services/payments/main.py:16` and a ServiceMonitor at `deploy/prometheus/servicemonitor-payments.yaml` — it always did |
-| 2 | High | Chaos PromQL used `envoy:upstream_rq_time_p95:rate5m` | Rule doesn't exist; actual recording rule is `envoy:http_request_duration:p95` |
-| 3 | Medium | Chaos PromQL used `api:http_5xx:rate5m` | Rule doesn't exist; actual recording rule is `api:http_errors:rate5m` |
-
-Also added: explicit Recording Rules table listing all 14 rules by name (original listed
-11 by description, missing `resilience_lab:pod_available:count`,
-`resilience_lab:pod_total:count`, and `api:rate_limit_allowed:rate5m`).

@@ -107,15 +107,22 @@ demands a higher version.
 
 ## Runtime Security Baseline
 
-All workloads in `deploy/helm/` enforce:
+Default service workloads (API, Payments) in `deploy/helm/` enforce:
 
 - non-root user (`runAsNonRoot: true`, `runAsUser: 1000`)
 - read-only root filesystem (`readOnlyRootFilesystem: true`)
 - all Linux capabilities dropped (`drop: ["ALL"]`)
 - `allowPrivilegeEscalation: false`
 
-NetworkPolicies restrict pod-to-pod traffic to declared paths only.
-See `deploy/helm/templates/netpol-*.yaml`.
+Two known exceptions: Redis runs as `runAsUser: 999` (upstream image convention,
+`redis-deployment.yaml:24`). Chaos mode (`values-chaos.yaml`) deliberately relaxes
+these constraints — `runAsUser: 0` and `NET_ADMIN` are required for fault injection
+to work. That's intentional and scoped to chaos testing only.
+
+NetworkPolicies enforce ingress as default-deny with explicit allows per service.
+Egress is partially constrained — DNS plus ports 8000, 8001, and 6379 are allowed
+broadly by port (`netpol-allow-essentials.yaml:10`). Full egress control is deferred;
+see [Open Items](#open-items) and issue #44.
 
 ---
 

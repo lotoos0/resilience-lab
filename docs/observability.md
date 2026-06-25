@@ -240,7 +240,7 @@ kubectl describe prometheusrule resilience-lab-rules -n monitoring
 - `envoy:outlier_ejections:rate5m` — outlier ejection rate
 - `envoy:bulkhead_overflow:rate5m` — bulkhead overflow rate
 
-**API (3 rules):**
+**API (4 rules):**
 
 - `api:http_requests:rate5m` — request rate
 - `api:http_errors:rate5m` — error rate

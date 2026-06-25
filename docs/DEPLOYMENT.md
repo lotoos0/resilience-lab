@@ -128,6 +128,10 @@ ARCHITECTURE.md](ARCHITECTURE.md#adr-004-in-memory-storage-in-v010).
 minikube start; eval (minikube docker-env)
 ```
 
+All shell snippets in this section use `fish` syntax. If you're running
+`bash` or `zsh`, use `eval $(minikube docker-env)` instead. Same command,
+different shell costume.
+
 The `eval` is essential. Without it, `docker build` writes images to the host
 daemon, not to minikube's — and your pods get `ImagePullBackOff` because they
 look for images that don't exist inside the cluster.
@@ -221,11 +225,16 @@ The parent chart (`deploy/helm/`, version `0.1.0`) renders 20 main resources:
 Redis is a plain Deployment + Service included in the counts above; there is no
 Bitnami subchart involved.
 
-The render also includes 4 Helm test Pods. Three are simple health checks. One
-legacy integration test still calls `/api/payments/test`; the current API exposes
-`/pay`. I never went back to fix it — the curl call is commented out so it
-can't fail your `helm test` run, but it's dead weight I'm leaving here labeled
-as such rather than pretending the chart is cleaner than it is.
+The render also includes 4 Helm test Pods:
+- 2 subchart connection tests: API `/healthz` and Payments `/healthz`
+- 1 parent-chart smoke test: API `/healthz` + Payments `/healthz`
+- 1 legacy API integration test that still calls `/api/payments/test`
+
+That last one is not a harmless museum piece: it is still active, and the
+current API exposes `/pay`, not `/api/payments/test`. So `make helm-test` can
+fail even when the deployed services are healthy. I am leaving this called out
+explicitly because it is exactly the kind of tiny stale hook that wastes 20
+minutes and then looks offended when you find it.
 
 No PostgreSQL or Envoy Deployment is rendered by the Helm chart today.
 `DATABASE_URL` is still present in service env vars as future groundwork — I'm
@@ -250,8 +259,10 @@ Run Helm tests if you specifically want to exercise the chart hooks:
 make helm-test
 ```
 
-Remember the legacy `/api/payments/test` hook noted above. For a boring and
-reliable smoke check after applying `deploy/envoy/`, port-forward Envoy:
+Important: `make helm-test` currently runs 4 hook Pods, and 1 of them is a
+known-stale legacy integration hook. Treat it as a chart-maintenance signal, not
+as the cleanest deployment smoke check. For a boring and reliable smoke check
+after applying `deploy/envoy/`, port-forward Envoy:
 
 ```fish
 kubectl port-forward -n resilience-lab svc/envoy-proxy 8080:80
@@ -543,6 +554,9 @@ make helm-up-dev
 kubectl rollout restart deployment/resilience-lab-payments -n resilience-lab
 kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 ```
+
+Using `bash` or `zsh` here? Swap the first line for
+`eval $(minikube docker-env)`.
 
 If the API pod is the one failing, either make sure
 `ghcr.io/lotoos0/resilience-lab-api:8b86f3d` is pullable, or build a local API

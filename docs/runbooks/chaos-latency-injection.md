@@ -13,8 +13,10 @@ and verify that the system does not breach any SLO alert window.
 The delay is applied via `scripts/fault-inject.sh latency`, which runs
 `tc qdisc add dev eth0 root netem delay 300ms` inside each payments pod via `kubectl exec`.
 
-300ms is below Envoy's `per_try_timeout: 2s`, so requests are expected to succeed
-without triggering retries, outlier ejections, or error-rate alerts.
+The original expectation was that 300ms would be below Envoy's per-try timeout,
+leaving plenty of headroom. In practice, `per_try_timeout` is `0.2s`
+(`deploy/envoy/envoy-config.yaml:70`) — 300ms exceeds it, so delayed connections
+time out immediately and exhaust retries. See the Finding section for actual outcomes.
 
 ## Impact / Blast Radius
 
@@ -247,7 +249,7 @@ curl -sG 'http://localhost:9090/api/v1/query' \
   --data-urlencode 'query=sum(rate(http_requests_total{job="resilience-lab-api",status=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{job="resilience-lab-api"}[5m])),0.001)' \
   | python3 -m json.tool
 
-# Retry rate — expect near 0 (300ms < 2s per_try_timeout)
+# Retry rate — actual: high (300ms > 0.2s per_try_timeout triggers retries on every delayed connection)
 curl -sG 'http://localhost:9090/api/v1/query' \
   --data-urlencode 'query=rate(envoy_cluster_upstream_rq_retry{envoy_cluster_name="payments_service"}[5m])' \
   | python3 -m json.tool
@@ -400,8 +402,9 @@ Timeline with 300ms netem applied to payments:
 3. Envoy → payments HTTP request (no delay)
 4. payments → Redis: every TCP packet delayed 300ms each way (Redis replies arrive
    normally, but payments' ACKs and queries are all delayed)
-5. Depending on the number of Redis round-trips, total processing can easily exceed 2s
-6. per_try_timeout: 2s fires → retry × 2 → retry_limit_exceeded → 504 to client
+5. Connection establishment alone takes ~300ms — exceeding `per_try_timeout: 0.2s`
+   immediately, before any Redis round-trip completes
+6. per_try_timeout: 0.2s fires → retry × 2 → retry_limit_exceeded → 504 to client
 
 **Effect:** 57/240 requests succeeded (used pre-existing warm connections from before
 injection). 183/240 requests returned 504 Gateway Timeout after 3 attempts each.
@@ -425,8 +428,8 @@ sum(rate(envoy_cluster_upstream_rq_5xx{envoy_cluster_name="payments_service"}[5m
 **Issue #40 acceptance criterion status:**
 - `tc netem delay 300ms` applied via script: ✅ CONFIRMED
 - System does not breach SLOs (no alerts fired): ✅ CONFIRMED
-- Root cause of 504s is Envoy's `per_try_timeout: 2s` being hit due to netem delaying
-  all payments→Redis packets, NOT a fundamental SLO breach.
+- Root cause of 504s is Envoy's `per_try_timeout: 0.2s` being exceeded by the 300ms
+  injected connection delay — NOT a fundamental SLO breach.
 
 ## PASS / FAIL Criteria
 

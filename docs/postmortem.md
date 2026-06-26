@@ -55,9 +55,10 @@ with panels that reflected real system state during chaos experiments.
 ### Latency injection (300ms, `tc netem`)
 
 Injected 300ms network delay into all Payments pods via `kubectl exec`. The pre-test
-expectation was that 300ms would be absorbed cleanly — Envoy's `per_try_timeout` is
-200ms, so any request hitting a delayed connection would time out, retry, and
-eventually exhaust retries. What actually happened:
+expectation was clean absorption — written assuming a `per_try_timeout` of 2s, which
+would have left plenty of headroom. The actual Envoy config has `per_try_timeout: 0.2s`
+(`deploy/envoy/envoy-config.yaml:70`). 300ms > 200ms, so every connection hitting the
+injected delay timed out immediately. What actually happened:
 
 - `upstream_cx_connect_ms P50 ≈ 305ms` — injection confirmed at the network layer
 - **183/240 requests returned 504 Gateway Timeout** — `per_try_timeout` (200ms) fired,

@@ -1,7 +1,5 @@
 # Postmortem — Resilience Lab v0.1.0
 
-*Written after the fact, which is exactly when postmortems should be written.*
-
 This project took longer than planned, shipped everything that was promised, and taught
 me more than I expected. Here's an honest account of what happened.
 
@@ -74,9 +72,10 @@ Deleted a random Payments pod directly. Result:
 - During the 15s window: requests to Payments would fail — Envoy had no healthy host
   to retry against (1-host cluster, `max_ejection_percent=50%` rounds to 0 ejectable)
 
-**Verdict:** Recovery is fast enough for a dev sandbox. In production you'd want 2+
-replicas so Envoy can actually eject the dead pod and serve from the healthy one.
-That's a known limitation of single-host testing, documented in the runbook.
+**Verdict:** 15s recovery in a single-replica setup. With 2+ replicas Envoy could eject
+the dead pod and continue serving from the healthy one — with 1 host,
+`max_ejection_percent=50%` rounds to 0 ejectable, so there's nowhere to fall back.
+Known limitation of single-host testing, documented in the runbook.
 
 ### Failure mode (`FAIL_MODE=1`)
 

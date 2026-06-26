@@ -16,6 +16,7 @@
 - [Security Baseline](#security-baseline)
 - [Deployment](#deployment)
 - [Observability Stack](#observability-stack)
+- [Resilience Scenarios](#resilience-scenarios)
 - [Architecture Decision Records](#architecture-decision-records)
 
 ---
@@ -42,31 +43,27 @@ showing.
 
 ## System Overview
 
-```
-                          ┌───────────────┐
-                          │   Internet /  │
-                          │   kubectl     │
-                          └──────┬────────┘
-                                 │
-                          ┌──────▼────────┐
-                          │    Traefik    │  TLS termination, IngressRoute
-                          └──────┬────────┘
-                                 │
-                          ┌──────▼────────┐
-                          │     Envoy     │  port 10000 (traffic), 9901 (admin)
-                          │  front-proxy  │  retries · circuit breaker · bulkhead
-                          └──────┬────────┘
-                                 │
-             ┌───────────────────┴───────────────────┐
-             │                                       │
-      ┌──────▼──────┐                        ┌──────▼──────┐
-      │     API     │  port 8000             │  Payments   │  port 8001
-      │   Service   │  rate limiting         │   Service   │  fault injection
-      └──────┬──────┘  /pay → Payments       └──────┬──────┘
-             │                                       │
-      ┌──────▼──────┐                        ┌──────▼──────┐
-      │    Redis    │  rate-limit counters    │  in-memory  │  temporary; see ADR-004
-      └─────────────┘  (TTL 60s, ephemeral)  └─────────────┘
+```mermaid
+flowchart TB
+    Client["Internet / kubectl"] --> Traefik["Traefik\nTLS termination\nIngressRoute"]
+
+    Traefik --> Envoy["Envoy front-proxy\n:10000 traffic / :9901 admin\nretries · circuit breaker · bulkhead"]
+
+    Envoy --> API["API Service\n:8000\nrate limiting\n/pay → Payments"]
+    Envoy --> Payments["Payments Service\n:8001\nfault injection"]
+
+    API --> Redis[("Redis\nrate-limit counters\nTTL 60s / ephemeral")]
+    Payments --> Memory[("In-memory store\ntemporary\nsee ADR-004")]
+
+    API -. metrics .-> Prometheus["Prometheus"]
+    Payments -. metrics .-> Prometheus
+    Envoy -. metrics .-> Prometheus
+
+    Prometheus --> Grafana["Grafana dashboards"]
+    Prometheus --> Alertmanager["Alertmanager"]
+
+    API -. logs .-> Loki["Loki"]
+    Payments -. logs .-> Loki
 ```
 
 ### Component Summary
@@ -80,6 +77,32 @@ showing.
 | Redis | Rate-limit sliding window counters | Deployed |
 | PostgreSQL | Future persistence layer | Helm chart configured, not yet wired |
 | Prometheus + Grafana + Loki | Observability stack | Deployed |
+
+### Request Flow: `POST /pay`
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Traefik
+    participant Envoy
+    participant API
+    participant Redis
+    participant Payments
+
+    Client->>Traefik: POST /api/pay
+    Traefik->>Envoy: route to front proxy
+    Envoy->>API: forward request
+    API->>Redis: check tenant rate limit
+    Redis-->>API: allowed / denied
+
+    alt rate limit exceeded
+        API-->>Client: HTTP 429
+    else allowed
+        API->>Payments: POST /process
+        Payments-->>API: payment result
+        API-->>Client: HTTP 201 / error
+    end
+```
 
 ---
 
@@ -398,6 +421,18 @@ Because the point of the project is resilience patterns — and you can't know i
 your retry policy is doing anything without metrics. The Grafana panel showing
 `envoy:retries:rate5m` climbing during a SLOW_MODE chaos run is what validates
 the architecture, not the code itself.
+
+---
+
+## Resilience Scenarios
+
+| Scenario | Trigger | Expected behavior | Observable signal |
+|----------|---------|-------------------|-------------------|
+| Payments returns 500 | `FAIL_MODE=1` | Envoy retries up to 2×, then returns failure if upstream stays unhealthy | `envoy:retries:rate5m`, 5xx error rate |
+| Payments is slow | `SLOW_MODE=1` | Per-try timeout (200ms) fires, request fails fast instead of hanging | p95 latency, 504 responses |
+| Tenant exceeds rate limit | >60 req/min with same `X-Tenant` | API returns HTTP 429 before hitting Payments | `rl_denied_total`, Loki rate-limit logs |
+| Pod disruption | Pod restart / node drain | PDB keeps at least 1 replica available | Pod availability ratio |
+| Bad upstream pod | 3 consecutive 5xx from one pod | Envoy outlier detection ejects the unhealthy host for 30s | Outlier ejection rate in Grafana |
 
 ---
 

@@ -12,29 +12,31 @@ production. The goal was a working system — not a toy, not a slideshow — wit
 FastAPI services, Envoy front-proxy, rate limiting, observability, and chaos testing,
 all running on Kubernetes and wired up with real CI/CD.
 
-262 commits. 84 pull requests. Several months. One v0.1.0 tag.
+84 pull requests. Several months. One v0.1.0 tag.
 
 ---
 
 ## What Went Well
 
 **The Helm chart held together.** A single parent chart with two subcharts (api,
-payments) plus templates for Redis, NetworkPolicy, HPA, PDB, ResourceQuota,
-LimitRange, and ServiceMonitors. It rendered cleanly, deployed repeatably, and
-survived multiple rounds of modification without falling apart. Getting the chart
-structure right early paid dividends every time something needed changing.
+payments) plus templates for Redis, NetworkPolicy, HPA, PDB, ResourceQuota, and
+LimitRange. ServiceMonitors live separately in `deploy/prometheus/` and are applied
+independently. The chart rendered cleanly, deployed repeatably, and survived multiple
+rounds of modification without falling apart. Getting the structure right early paid
+dividends every time something needed changing.
 
-**CI/CD was solid from the start.** The pipeline (lint → unit tests → integration
-tests → Docker build → Trivy image scan → push to GHCR) ran on every PR and never
-became a liability. Two Trivy suppressions were intentional and documented
-(`ignore-unfixed: true` for unpatched OS-level CVEs, `skip-dirs` for setuptools
-vendor copies). No corners cut.
+**CI/CD was solid from the start.** CI ran lint, unit tests, integration tests, Docker
+build, and Trivy image scan on every PR. CD pushed images to GHCR on branch and tag
+pushes — separate workflow, separate trigger. Two Trivy suppressions were intentional
+and documented (`ignore-unfixed: true` for unpatched OS-level CVEs, `skip-dirs` for
+setuptools vendor copies). No corners cut.
 
 **Envoy actually worked.** Retry policy with per-try timeout (200ms), exponential
 backoff, outlier ejection, circuit breaker, and bulkhead limits — all configured and
-stress-tested. Not just copied from a blog post. The 300ms latency injection scenario
-confirmed that `upstream_cx_connect_ms P50 ≈ 305ms` appeared in Envoy metrics exactly
-as expected, with zero alert firing and zero user-visible errors. That felt good.
+stress-tested. Not just copied from a blog post. The latency injection scenario
+produced real, unexpected data: 183/240 requests returned 504, SLO alerts never fired,
+and that gap between those two facts taught me more than a clean result would have.
+More on that below.
 
 **The security baseline was real.** `runAsNonRoot: true`, `readOnlyRootFilesystem`,
 `capDrop: ALL`, `allowPrivilegeEscalation: false` on every workload. ResourceQuota and
@@ -52,16 +54,23 @@ with panels that reflected real system state during chaos experiments.
 
 ### Latency injection (300ms, `tc netem`)
 
-Injected 300ms network delay into all Payments pods via `kubectl exec`. Result:
+Injected 300ms network delay into all Payments pods via `kubectl exec`. The pre-test
+expectation was that 300ms would be absorbed cleanly — Envoy's `per_try_timeout` is
+200ms, so any request hitting a delayed connection would time out, retry, and
+eventually exhaust retries. What actually happened:
 
-- `upstream_cx_connect_ms P50 ≈ 305ms` in Envoy metrics — injection confirmed
-- Zero 5xx errors — 300ms is well below the 2s `per_try_timeout`, so retries weren't
-  needed and requests succeeded
-- Zero alerts fired — `HighErrorRate` threshold wasn't breached
+- `upstream_cx_connect_ms P50 ≈ 305ms` — injection confirmed at the network layer
+- **183/240 requests returned 504 Gateway Timeout** — `per_try_timeout` (200ms) fired,
+  retries exhausted (3 attempts), client got a 504
+- **Zero SLO alerts fired** — `HighErrorRate` watches the API service error rate, which
+  stayed at 0 throughout; the 504s are Envoy-level only and not visible to that metric
 - Cleanup left no residual state
 
-**Verdict:** System absorbed the latency without user-visible errors. Envoy's timeout
-headroom (200ms per-try, 2s total) was correctly sized for this failure mode.
+**Verdict:** This one hurt to document honestly. The system "passed" SLO criteria while
+76% of payments requests were failing — because the alerts were watching the wrong
+signal. There's no alert covering Envoy-level 5xx for the payments cluster. That's an
+alert coverage gap, not a resilience success. The finding is documented in
+`docs/runbooks/chaos-latency-injection.md` with a suggested follow-up alert rule.
 
 ### Pod kill
 

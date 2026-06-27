@@ -1,6 +1,6 @@
 # Security
 
-*Last updated: 2026-06-25*
+*Last updated: 2026-06-26*
 
 Container security is one of the few places where "good enough" quietly turns into "incident report". Here's what I put in place, why I made each call, and what I'm still ignoring on purpose.
 
@@ -13,6 +13,8 @@ Container security is one of the few places where "good enough" quietly turns in
 - [Python Dependency Pins](#python-dependency-pins-security-motivated)
 - [Dockerfile Upgrade Step](#dockerfile-upgrade-step)
 - [Runtime Security Baseline](#runtime-security-baseline)
+- [Namespace Resource Constraints](#namespace-resource-constraints)
+- [RBAC Verification](#rbac-verification)
 - [Open Items](#open-items)
 - [What changed in this document](#what-changed-in-this-document)
 
@@ -123,6 +125,90 @@ NetworkPolicies enforce ingress as default-deny with explicit allows per service
 Egress is partially constrained — DNS plus ports 8000, 8001, and 6379 are allowed
 broadly by port (`netpol-allow-essentials.yaml:10`). Full egress control is deferred;
 see [Open Items](#open-items) and issue #44.
+
+---
+
+## Namespace Resource Constraints
+
+I added two new Helm templates in `deploy/helm/templates/` as part of the v0.1.0
+security review: `resourcequota.yaml` and `limitrange.yaml`. These didn't exist before.
+The cluster was running on the honour system — every workload could theoretically eat
+as much CPU and memory as it wanted, and nothing would stop it.
+
+That's fine for a local dev sandbox. Less fine when you're writing a document called "Security".
+
+### ResourceQuota
+
+A `ResourceQuota` puts a hard ceiling on the entire `resilience-lab` namespace. The
+numbers aren't arbitrary — here's exactly why each one landed where it did:
+
+| What | Why that number |
+|------|-----------------|
+| `limits.cpu: "4"` | HPA can scale api and payments to 4 replicas each. 4 replicas × 500m limit = 2 cores per service, 2 services = 4 cores. Redis adds 250m on top — there's slack, but it's not a blank cheque. |
+| `requests.cpu: "1"` | Baseline at 2 replicas: 2×100m (api) + 2×100m (payments) + 50m (redis) = 450m. Rounded up to 1 to absorb the brief overlap when HPA spins up a new pod before the old one terminates. |
+| `limits.memory: 4Gi` | Same HPA headroom: 4 replicas × 512Mi × 2 services = 4Gi exactly. Redis adds 256Mi on top — so this cap is intentionally tight. If the namespace needs more than 4Gi, something has gone sideways. |
+| `requests.memory: 1Gi` | Baseline: 2×128Mi + 2×128Mi + 64Mi = 448Mi. Rounded to 1Gi for the same pod-transition reason as CPU. |
+
+Object count caps — 20 pods, 10 services, 20 configmaps, 20 secrets, 5 PVCs — are
+generous enough to not get in the way of normal operations, but tight enough to notice
+if something starts spinning up resources in a loop.
+
+### LimitRange
+
+A `LimitRange` covers the per-container side of the problem. Without it, a pod that
+doesn't declare resource limits at all gets scheduled as unbounded — it can spike to
+whatever the node allows, completely bypassing the ResourceQuota. Kubernetes is helpful
+like that.
+
+| | CPU | Memory |
+|-|-----|--------|
+| default limit | 500m | 512 Mi |
+| default request | 100m | 128 Mi |
+| max | 1 core | 1 Gi |
+| min | 10m | 16 Mi |
+
+The `default` values mirror what api and payments already declare explicitly in their
+`values.yaml` — so existing workloads are unaffected. The `max` ceiling means no
+single container can sneak past 1 core or 1 Gi of RAM, which is especially useful
+when a future workload lands in the namespace without carefully reviewed resource specs.
+
+---
+
+## RBAC Verification
+
+None of the deployed workloads — api, payments, redis — need to talk to the Kubernetes
+API. They're not operators, they're not controllers, they're web services that talk
+HTTP and Redis. So I added zero RoleBindings for the default service account. On purpose.
+
+`kubectl auth can-i` confirms it:
+
+```
+kubectl auth can-i create pods \
+  --as=system:serviceaccount:resilience-lab:default -n resilience-lab
+# → no
+
+kubectl auth can-i delete pods \
+  --as=system:serviceaccount:resilience-lab:default -n resilience-lab
+# → no
+
+kubectl auth can-i get secrets \
+  --as=system:serviceaccount:resilience-lab:default -n resilience-lab
+# → no
+
+kubectl auth can-i list pods \
+  --as=system:serviceaccount:resilience-lab:default -n resilience-lab
+# → no
+```
+
+Four `no`s. That's the goal. The default SA can't create or delete workloads, can't
+read secrets, can't even list other pods in the same namespace. If a pod gets
+compromised, the blast radius is limited to whatever that container can reach over the
+network — not the entire cluster.
+
+If a future component genuinely needs Kubernetes API access (a controller, a sidecar
+injector, something that actually has business talking to the API server), it gets a
+dedicated service account with a scoped `Role` covering exactly the verbs it needs.
+The default SA stays at zero.
 
 ---
 

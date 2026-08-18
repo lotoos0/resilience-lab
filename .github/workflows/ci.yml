@@ -22,7 +22,7 @@ jobs:
             ${{ runner.os }}-pip-lint-
             ${{ runner.os }}-pip-
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.1.6
       - name: Lint all services
         run: ruff check services/
   trivy-fs:

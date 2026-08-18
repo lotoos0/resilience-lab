@@ -1,7 +1,6 @@
 <div align="center">
 
-[![CI](https://img.shields.io/github/actions/workflow/status/lotoos0/resilience-lab/ci.yml?branch=main&label=CI&style=for-the-badge)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
-[![CD](https://img.shields.io/github/actions/workflow/status/lotoos0/resilience-lab/cd.yml?branch=main&label=CD&style=for-the-badge)](https://github.com/lotoos0/resilience-lab/actions/workflows/cd.yml)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/lotoos0/resilience-lab/ci.yml?branch=main&label=CI%2FCD&style=for-the-badge)](https://github.com/lotoos0/resilience-lab/actions/workflows/ci.yml)
 [![Security](https://img.shields.io/badge/security-Trivy-blue?style=for-the-badge)](https://github.com/lotoos0/resilience-lab/security/code-scanning)
 
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -39,7 +38,7 @@ Use it to practice DevOps/SRE workflows, test failure scenarios, and show a work
 - **Networking layer** — Traefik ingress → Envoy front-proxy (retry, per-try timeout, circuit breaker, outlier ejection, bulkhead)
 - **Observability** — Prometheus + Grafana (System Overview + Traffic & Latency dashboards), Loki + Promtail logs, alert rules
 - **Kubernetes-ready** — Helm charts, HPA, PDB, NetworkPolicy, non-root security baseline
-- **CI/CD** — GitHub Actions: lint → test → integration → build → publish to GHCR
+- **CI/CD** — GitHub Actions: lint → test → integration → security/build gates → publish the validated SHA to GHCR
 - **Chaos engineering** — fault injection scripts (failure, latency, pod kill) + operational runbooks
 
 ---

@@ -2,6 +2,7 @@ name: CI (Lint + Test + Build)
 on:
   push:
     branches: [main, develop]
+    tags: ['v*']
   pull_request:
     branches: [main, develop]
 jobs:
@@ -149,3 +150,51 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           skip-dirs: '**/setuptools/_vendor'
+  publish:
+    runs-on: ubuntu-latest
+    needs: [lint, trivy-fs, test, integration-test, build]
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    env:
+      API_IMAGE: ghcr.io/${{ github.repository_owner }}/resilience-lab-api
+      PAYMENTS_IMAGE: ghcr.io/${{ github.repository_owner }}/resilience-lab-payments
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Determine immutable image tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push API
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          docker build -t "${API_IMAGE}:${IMAGE_TAG}" -f services/api/Dockerfile .
+          docker push "${API_IMAGE}:${IMAGE_TAG}"
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            docker tag "${API_IMAGE}:${IMAGE_TAG}" "${API_IMAGE}:latest"
+            docker push "${API_IMAGE}:latest"
+          fi
+      - name: Build and push Payments
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          docker build -t "${PAYMENTS_IMAGE}:${IMAGE_TAG}" -f services/payments/Dockerfile .
+          docker push "${PAYMENTS_IMAGE}:${IMAGE_TAG}"
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            docker tag "${PAYMENTS_IMAGE}:${IMAGE_TAG}" "${PAYMENTS_IMAGE}:latest"
+            docker push "${PAYMENTS_IMAGE}:latest"
+          fi

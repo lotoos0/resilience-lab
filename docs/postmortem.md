@@ -25,11 +25,14 @@ independently. The chart rendered cleanly, deployed repeatably, and survived mul
 rounds of modification without falling apart. Getting the structure right early paid
 dividends every time something needed changing.
 
-**CI/CD was solid from the start.** CI ran lint, unit tests, integration tests, Docker
-build, and Trivy image scan on every PR. CD pushed images to GHCR on branch and tag
-pushes — separate workflow, separate trigger. Two Trivy suppressions were intentional
-and documented (`ignore-unfixed: true` for unpatched OS-level CVEs, `skip-dirs` for
-setuptools vendor copies). No corners cut.
+**CI had broad coverage, but publication had a real gating gap.** CI ran lint, unit
+tests, integration tests, Docker builds, and Trivy image scans on every PR. Image
+publication originally used a separate push-triggered workflow, so it could run before
+CI finished, and `develop` could overwrite `latest`. After release I consolidated
+publication behind the required CI jobs and restricted `latest` to validated `main`
+pushes. The two Trivy suppressions remain intentional and documented
+(`ignore-unfixed: true` for unpatched OS-level CVEs, `skip-dirs` for setuptools vendor
+copies).
 
 **Envoy actually worked.** Retry policy with per-try timeout (200ms), exponential
 backoff, outlier ejection, circuit breaker, and bulkhead limits — all configured and

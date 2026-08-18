@@ -374,9 +374,13 @@ ghcr.io/lotoos0/resilience-lab-payments
 ```
 
 Tags:
-- `<git-sha>` — every push to `main` or `develop`
-- `<version>` (e.g. `v0.1.0`) — every `v*` tag push
-- `latest` — always updated alongside the SHA/version tag
+- `<git-sha>` — a validated push to `main` or `develop`
+- `<version>` (e.g. `v0.1.0`) — a validated `v*` tag push
+- `latest` — updated only by a validated push to `main`
+
+Pull requests never publish images. A `develop` push publishes only its immutable
+SHA tag, so development builds cannot overwrite `latest`. Release tags publish
+only the requested version tag.
 
 I publish these as public packages on purpose, so anyone cloning the repo can
 pull without a token:
@@ -392,20 +396,21 @@ If I ever flip that visibility, you'd need to authenticate first with
 
 ## CI/CD Pipeline
 
-Two GitHub Actions workflows in `.github/workflows/`:
+One GitHub Actions workflow in `.github/workflows/` validates changes and gates
+image publication for the same commit.
 
-### CI (`ci.yml`) — every push and PR to `main`/`develop`
+### CI/CD (`ci.yml`) — PRs, branch pushes, and `v*` tags
 
-Runs 5 jobs. `lint`, `trivy-fs`, and `test` run in parallel. `integration-test`
-and `build` both need `lint` and `test` to pass first:
+Runs six jobs. `lint`, `trivy-fs`, and `test` run in parallel. `integration-test`
+and `build` both need `lint` and `test` to pass first. `publish` then requires
+every validation job to succeed:
 
 ```
-lint ──────┬── integration-test
-           │
-test ──────┤
-           └── build
-
-trivy-fs (independent, runs in parallel)
+lint ───────────────┐
+test ───────────────┤
+integration-test ───┤
+build ──────────────┼── publish (push events only)
+trivy-fs ───────────┘
 ```
 
 | Job | What it does |
@@ -415,6 +420,7 @@ trivy-fs (independent, runs in parallel)
 | `test` | Unit tests (`pytest -m "not integration"`) with postgres:16 + redis:7-alpine sidecar containers (mocked by tests), coverage → Codecov |
 | `integration-test` | Spins up the Docker Compose stack, waits for every service healthcheck with a fail-closed timeout, runs `pytest -m integration`, tears down |
 | `build` | Builds both images, runs Trivy image scan (exit-code 1 on CRITICAL/HIGH unfixed CVEs) |
+| `publish` | For push events only, rebuilds the exact validated SHA and publishes both images according to the ref-specific tag policy |
 
 **Note on CI service containers**: The test job spins up postgres:16 and
 redis:7-alpine — but the unit tests mock both (Redis via `unittest.mock.Mock`,
@@ -428,20 +434,25 @@ without waiting for Docker. The job uses `docker compose up --wait` to require
 every service healthcheck to pass. If the stack is not ready before the timeout,
 the step fails, diagnostics are printed, and integration tests do not start.
 
-### CD (`cd.yml`) — push to `main`/`develop`, or `v*` tag
+### Gated publication and tag policy
 
-One job: `build-and-push`.
+The `publish` job declares explicit dependencies on `lint`, `trivy-fs`, `test`,
+`integration-test`, and `build`. GitHub Actions therefore skips publication if
+any required job fails or is cancelled. The checkout is pinned to the triggering
+`${{ github.sha }}`, so the built source is the same commit that passed validation.
 
-Determines the image tag:
-- If triggered by a `v*` tag → tag = version string (e.g. `v0.1.0`)
-- Otherwise → tag = `$GITHUB_SHA`
+| Event | Published tags | Updates `latest` |
+|-------|----------------|------------------|
+| Pull request | none | no |
+| Push to `develop` | `<git-sha>` | no |
+| Push to `main` | `<git-sha>`, `latest` | yes |
+| Push of `v*` tag | `<version>` | no |
 
-Builds both images, tags them, pushes SHA/version tag + `latest` to GHCR.
+The API and Payments images always use the same policy.
 
-**No automatic Kubernetes deploy**: The deploy step in `cd.yml` is commented
-out. I build and push automatically, but I trigger `helm upgrade` manually.
-Until there's a staging cluster with a proper kubeconfig secret, automating
-the K8s deploy would mean committing cluster credentials — not worth it.
+**No automatic Kubernetes deploy**: The workflow builds and publishes images,
+but I still trigger `helm upgrade` manually. No deployment job or cluster
+credentials are configured in GitHub Actions.
 
 ---
 

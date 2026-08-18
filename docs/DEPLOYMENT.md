@@ -413,7 +413,7 @@ trivy-fs (independent, runs in parallel)
 | `lint` | `ruff check services/` |
 | `trivy-fs` | Trivy filesystem scan (CRITICAL + HIGH), results to GitHub Security tab |
 | `test` | Unit tests (`pytest -m "not integration"`) with postgres:16 + redis:7-alpine sidecar containers (mocked by tests), coverage → Codecov |
-| `integration-test` | Spins up the Docker Compose stack, does a shallow health wait plus a 10s settle, runs `pytest -m integration`, tears down |
+| `integration-test` | Spins up the Docker Compose stack, waits for every service healthcheck with a fail-closed timeout, runs `pytest -m integration`, tears down |
 | `build` | Builds both images, runs Trivy image scan (exit-code 1 on CRITICAL/HIGH unfixed CVEs) |
 
 **Note on CI service containers**: The test job spins up postgres:16 and
@@ -424,9 +424,9 @@ a live connection.
 
 **Why integration tests are separate**: They need Docker Compose, which means
 building images. I keep them in their own job so `lint` and `test` can fail fast
-without waiting for Docker. The wait loop I wrote checks for any `healthy`
-container and then sleeps 10s — it's a pragmatic smoke gate I'm comfortable with,
-not a perfect "all services are healthy" oracle. Tiny CI fortune cookie, basically.
+without waiting for Docker. The job uses `docker compose up --wait` to require
+every service healthcheck to pass. If the stack is not ready before the timeout,
+the step fails, diagnostics are printed, and integration tests do not start.
 
 ### CD (`cd.yml`) — push to `main`/`develop`, or `v*` tag
 

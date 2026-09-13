@@ -10,6 +10,10 @@
 > M3 has since shipped - these points are historical context, not an open TODO list.
 >
 > *Docs style updated: 2026-06-25. Test execution date unchanged: 01.12.2025.*
+>
+> Configuration values in this file are the values captured during the 01.12.2025
+> run. They are historical evidence, not a current Envoy configuration reference.
+> Before repeating a test, compare them with `deploy/envoy/envoy-config.yaml`.
 
 ---
 

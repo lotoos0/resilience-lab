@@ -211,7 +211,7 @@ spicy; I'm admitting it out loud here instead of pretending it's a design.
 
 ### What Helm Deploys
 
-The parent chart (`deploy/helm/`, version `0.1.0`) renders 20 main resources:
+The parent chart (`deploy/helm/`, version `0.1.0`) renders 22 main resources:
 
 | Resource | Count | Notes |
 |----------|-------|-------|
@@ -221,6 +221,8 @@ The parent chart (`deploy/helm/`, version `0.1.0`) renders 20 main resources:
 | PDBs | 3 | API, Payments, and an Envoy PDB for the separately applied Envoy deployment |
 | NetworkPolicies | 7 | default-deny + explicit allows, including Envoy-facing policies |
 | ConfigMaps (Grafana dashboards) | 2 | System Overview, Resilience |
+| ResourceQuota | 1 | Namespace-wide CPU, memory, and object-count limits |
+| LimitRange | 1 | Default and maximum per-container resources |
 
 Redis is a plain Deployment + Service included in the counts above; there is no
 Bitnami subchart involved.

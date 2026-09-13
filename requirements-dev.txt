@@ -6,6 +6,11 @@ fastapi>=0.104.1
 uvicorn[standard]>=0.24.0
 pydantic>=2.10.0  # Python 3.13 support
 
+# Runtime packages imported by the application during unit tests
+redis==5.0.1
+prometheus-client==0.19.0
+prometheus-fastapi-instrumentator==8.*
+
 # HTTP client
 httpx==0.25.1
 requests==2.31.0

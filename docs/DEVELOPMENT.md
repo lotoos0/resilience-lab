@@ -83,7 +83,7 @@ That's 4 steps. If step 3 fails, check that Docker daemon is actually running (y
 ### Option 1: Virtual Environment (Recommended for fast iteration)
 
 ```bash
-make install            # Creates venv + installs requirements-dev.txt (~10 packages)
+make install            # Creates venv + installs requirements-dev.txt
 source venv/bin/activate
 make dev                # Starts 4 Docker containers: api, payments, postgres, redis
 ```

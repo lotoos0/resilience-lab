@@ -60,7 +60,7 @@ with panels that reflected real system state during chaos experiments.
 Injected 300ms network delay into all Payments pods via `kubectl exec`. The pre-test
 expectation was clean absorption - written assuming a `per_try_timeout` of 2s, which
 would have left plenty of headroom. The actual Envoy config has `per_try_timeout: 0.2s`
-(`deploy/envoy/envoy-config.yaml:70`). 300ms > 200ms, so every connection hitting the
+in the Envoy retry policy. 300ms > 200ms, so every connection hitting the
 injected delay timed out immediately. What actually happened:
 
 - `upstream_cx_connect_ms P50 ≈ 305ms` - injection confirmed at the network layer

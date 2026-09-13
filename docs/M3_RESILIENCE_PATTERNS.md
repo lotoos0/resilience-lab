@@ -212,38 +212,29 @@ Ejected:      [Pod-B]   ← probed after 30s; re-added if healthy
 
 ## Combined Resilience Stack
 
-Every request passes through all four defense layers in order:
+There are two request paths, not one giant conveyor belt. The API rate limiter
+only sees requests that actually reach the API service:
 
 ```
 Client Request
      │
      ▼
-┌─────────────────────────────────────┐
-│ 1. Rate Limiting  (FastAPI)         │  ← 60 req/min/tenant → 429 on excess
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│ 2. Ingress  (Traefik)               │  ← TLS termination, routes /api/* → Envoy
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│ 3. Envoy Proxy  (resilience layers) │
-│                                     │
-│  Bulkhead (circuit_breakers)        │  ← max 5 conn / 5 pending / 10 req
-│  Outlier Detection                  │  ← eject after 3× 5xx, max 50% of hosts
-│  Retry Policy                       │  ← 2 retries, 200ms per-try timeout
-│  Timeout Policy                     │  ← 2s route timeout, 60s idle
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│ 4. Backend Services                 │
-│    API (FastAPI :8000)              │
-│    Payments (FastAPI :8001)         │
-└─────────────────────────────────────┘
+ Optional Traefik IngressRoute (if installed)
+     │
+     ▼
+ Envoy resilience layers
+     │
+     ├── /api/* ──> API rate limiting (60 req/min/tenant) ──> API ──> Payments
+     │
+     └── /payments/* ──> Payments (bypasses API rate limiting)
 ```
+
+Envoy applies retry, timeout, outlier-detection, and circuit-breaker policies on
+both routes. Traefik is only an optional external ingress layer; the repo provides
+the `IngressRoute`, not the Traefik controller or its Service.
+
+The limits are unchanged: Envoy uses max 5 connections, 5 pending requests, 10
+active requests, 2 retries, a 200ms per-try timeout, and a 2s route timeout.
 
 ### Failure scenarios covered
 
@@ -300,7 +291,8 @@ curl -s http://localhost:9901/stats | grep per_try_timeout
 ### Test rate limiting
 
 ```bash
-kubectl port-forward -n resilience-lab svc/traefik 8080:80
+# The repo does not create a Traefik Service. For a repo-only check, forward Envoy.
+kubectl port-forward -n resilience-lab svc/envoy-proxy 8080:80
 
 # Fire 65 requests - 60 should pass, 5 should get 429
 # Note: must use a rate-limited path. /api/healthz is rewritten to /healthz
@@ -315,6 +307,9 @@ done | sort | uniq -c
 # 60 200
 #  5 429
 ```
+
+To test the real Traefik ingress path instead, use the Service name exposed by the
+separate Traefik installation in that cluster. It is not fixed by this repository.
 
 ### Test bulkhead (connection pool exhaustion)
 

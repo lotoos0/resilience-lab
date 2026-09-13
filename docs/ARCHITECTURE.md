@@ -294,19 +294,22 @@ an in-memory dict that lives until the pod restarts. See [ADR-004](#adr-004-in-m
 
 ### Container Hardening
 
-Applied in both Dockerfiles:
+The Dockerfiles handle image-level defaults:
 
 - `USER appuser` - non-root, dedicated user
-- `readOnlyRootFilesystem: true`
-- `allowPrivilegeEscalation: false`
-- `capDrop: [ALL]`
+- Docker `HEALTHCHECK` on `/healthz`
 - `--no-cache-dir` on pip installs (smaller image, no stale cache)
 
-### Kubernetes Security
+The Kubernetes pod `securityContext` adds the runtime restrictions:
 
-- NetworkPolicy default-deny (see above)
-- `runAsNonRoot: true` in pod security context
-- Trivy image scanning runs in CI on every build
+- `runAsNonRoot: true`
+- `readOnlyRootFilesystem: true`
+- `allowPrivilegeEscalation: false`
+- `capabilities.drop: [ALL]`
+
+NetworkPolicy keeps ingress default-deny (see above), and Trivy image scanning runs
+in CI on every build. These are separate layers - the Dockerfile cannot set a
+Kubernetes pod securityContext, and Kubernetes cannot change how the image was built.
 
 ### Application Security
 
@@ -354,7 +357,7 @@ deploy/helm/
 |---------|-----------------|---------|---------|-----------------|
 | API | 2 | 2 | 5 | CPU > 70% or memory > 80% |
 | Payments | 2 | 1 | 3 | CPU > 70% or memory > 80% |
-| Envoy | 1 | - | - | No HPA (single proxy) |
+| Envoy | 2 | - | - | No HPA (separate deployment) |
 
 **Pod Disruption Budgets**:
 
@@ -481,8 +484,8 @@ in-flight request to Payments.
 
 **Status**: Accepted
 
-**Decision**: One Envoy instance as a dedicated front proxy, not as a sidecar
-injected into every pod.
+**Decision**: One Envoy deployment with two replicas as a dedicated front proxy,
+not a sidecar injected into every pod.
 
 **Why**: A full service mesh (Istio, Linkerd) would give me mTLS, per-pod telemetry,
 and more granular traffic control - but also a significant operational overhead for

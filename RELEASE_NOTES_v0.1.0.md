@@ -53,8 +53,9 @@ This is the initial release, so everything is new. The highlights by layer:
 **Infrastructure**
 - **Helm chart** - single parent chart with subchart structure, `values-dev.yaml`
   for local minikube
-- **CI/CD** - GitHub Actions: lint → unit tests → integration tests → Docker build →
-  push to GHCR; runs on every PR and push to develop/main
+- **CI/CD** - GitHub Actions: lint → unit tests → integration tests → Docker build.
+  Pull requests run validation without publishing images; pushes to `develop`, `main`,
+  and `v*` tags publish to GHCR after all gates pass.
 - **Security baseline** - `runAsNonRoot`, `readOnlyRootFilesystem`, `capDrop: ALL`,
   no privilege escalation; Trivy scanning in CI
 

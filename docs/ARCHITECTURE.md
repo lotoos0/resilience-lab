@@ -1,6 +1,6 @@
 # Architecture
 
-**Resilience Lab — v0.1.0**
+**Resilience Lab - v0.1.0**
 
 *Last updated: 2026-06-26*
 
@@ -25,14 +25,14 @@
 ## What This Actually Is
 
 Resilience Lab is a microservices sandbox built to practice real SRE and DevOps patterns
-in a controlled environment — the kind where you *deliberately* break things and then
+in a controlled environment - the kind where you *deliberately* break things and then
 prove the system recovers. It's not a production product. It's a learning project that
 takes production seriously.
 
 v0.1.0 is the MVP: two FastAPI services talking through Envoy, with rate limiting,
 chaos injection, a full observability stack, and enough Kubernetes machinery to make
 crashes interesting. Everything described in this document is **deployed and tested**
-in v0.1.0 — not "planned" or "future". If something is still pending, it's labeled
+in v0.1.0 - not "planned" or "future". If something is still pending, it's labeled
 explicitly.
 
 The short version of why I made the choices I did: I started as a flat Docker Compose
@@ -76,7 +76,7 @@ flowchart TB
 | API Service | Payment entry point, rate limiting | Deployed |
 | Payments Service | Payment processing, fault injection | Deployed |
 | Redis | Rate-limit sliding window counters | Deployed |
-| PostgreSQL | Future persistence layer | Not deployed — orphaned `values.yaml` config, no chart dependency |
+| PostgreSQL | Future persistence layer | Not deployed - orphaned `values.yaml` config, no chart dependency |
 | Prometheus + Grafana + Loki | Observability stack | Deployed |
 | Alertmanager | Alert routing and notifications | Deployed |
 
@@ -113,20 +113,20 @@ sequenceDiagram
 ### API Service
 
 **Why it exists**: Single entry point for clients. Handles rate limiting before anything
-hits the backend — if you're over quota, you find out here, not in Payments.
+hits the backend - if you're over quota, you find out here, not in Payments.
 
-**Tech**: Python 3.11, FastAPI, Uvicorn — port `8000`.
+**Tech**: Python 3.11, FastAPI, Uvicorn - port `8000`.
 
 **Endpoints**:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/healthz` | GET | Liveness/readiness probe |
-| `/pay` | POST | Creates payment — proxies to Payments service |
+| `/pay` | POST | Creates payment - proxies to Payments service |
 | `/metrics` | GET | Prometheus metrics (prometheus-fastapi-instrumentator) |
 | `/docs` | GET | OpenAPI spec (FastAPI auto-generated) |
 
-**Rate limiting** — Redis-backed sliding window, implemented as Starlette middleware:
+**Rate limiting** - Redis-backed sliding window, implemented as Starlette middleware:
 - Limit: **60 requests/minute per tenant**
 - Tenant identity: `X-Tenant` request header (falls back to `"default"`)
 - Window: 60s sliding (Redis sorted set with UUID entries)
@@ -137,7 +137,7 @@ hits the backend — if you're over quota, you find out here, not in Payments.
 
 **Why Redis sorted set and not a simple counter**: Sliding window gives smooth
 behavior under bursty traffic. A fixed-window counter lets you sneak 120 requests
-across a window boundary — sorted set zcard doesn't.
+across a window boundary - sorted set zcard doesn't.
 
 **Downstream call**: `POST {PAYMENTS_URL}/process` via `httpx.AsyncClient`, timeout `5.0s`.
 On `TimeoutException` → `HTTP 504`. On other `HTTPError` → `HTTP 503`.
@@ -149,7 +149,7 @@ On `TimeoutException` → `HTTP 504`. On other `HTTPError` → `HTTP 503`.
 **Why it exists**: Isolated payment domain. Separate process, separate port,
 independently deployable. Also: the service I deliberately break in chaos tests.
 
-**Tech**: Python 3.11, FastAPI, Uvicorn — port `8001`.
+**Tech**: Python 3.11, FastAPI, Uvicorn - port `8001`.
 
 **Endpoints**:
 
@@ -165,7 +165,7 @@ independently deployable. Also: the service I deliberately break in chaos tests.
 - `currency`: `str`, pattern `^[A-Z]{3}$` (ISO 4217)
 - `tenant_id`: `str`, defaults to `"default"`
 
-**Fault injection** — controlled via environment variables, used in chaos tests:
+**Fault injection** - controlled via environment variables, used in chaos tests:
 - `FAIL_MODE=1` → returns `HTTP 500` on every `/process` call
 - `SLOW_MODE=1` → sleeps `2s` before responding (simulates latency spike)
 
@@ -173,7 +173,7 @@ These two flags are how I exercise Envoy's retry and circuit breaker from a know
 repeatable starting point. See [chaos runbooks](runbooks/README.md).
 
 **Storage**: Currently in-memory (`dict`). Data does not survive restarts. This is
-intentional for v0.1.0 — the focus was on the infrastructure layer, not persistence.
+intentional for v0.1.0 - the focus was on the infrastructure layer, not persistence.
 PostgreSQL migration is tracked in [ADR-004](#adr-004-in-memory-storage-in-v010).
 
 ---
@@ -199,7 +199,7 @@ and emitting the detailed metrics that make chaos tests observable.
 | `max_interval` | `250ms` | Cap on jitter to avoid thundering-herd |
 
 The 200ms per-try timeout is deliberate: SLOW_MODE injects a 2s delay, which blows
-past it immediately. That's the point — I want to *see* retries fire under controlled
+past it immediately. That's the point - I want to *see* retries fire under controlled
 conditions, not watch the system silently hang.
 
 **Circuit breaker** (bulkhead limits per cluster):
@@ -211,7 +211,7 @@ conditions, not watch the system silently hang.
 | `max_requests` | 10 |
 
 These low numbers are intentional. This is a single-node minikube environment.
-I want the breaker to trip under moderate load so I can observe it — not set limits
+I want the breaker to trip under moderate load so I can observe it - not set limits
 that only matter at scale.
 
 **Outlier detection** (passive health checking):
@@ -225,12 +225,12 @@ that only matter at scale.
 | `enforcing_consecutive_5xx` | 100% |
 
 After 3 consecutive 5xx responses in a 10s window, the upstream host is ejected for
-30s. At most half the cluster is ejected at once — so one bad pod doesn't take the
+30s. At most half the cluster is ejected at once - so one bad pod doesn't take the
 whole service down.
 
 Outlier detection requires the upstream service to use a **headless Service**
-(`clusterIP: None`). Without it, Envoy sees only the ClusterIP — a single virtual
-address — and cannot distinguish individual pod endpoints to eject.
+(`clusterIP: None`). Without it, Envoy sees only the ClusterIP - a single virtual
+address - and cannot distinguish individual pod endpoints to eject.
 
 ### Traefik (Ingress)
 
@@ -268,7 +268,7 @@ production incident.
 Stores rate-limit sliding window counters. Each key is `rate_limit:{tenant_id}`,
 a Redis sorted set with UUID members and Unix-timestamp scores.
 
-- Not persisted (`emptyDir` in Kubernetes — by design, counters are ephemeral)
+- Not persisted (`emptyDir` in Kubernetes - by design, counters are ephemeral)
 - No auth, no replication needed for this use case
 - TTL: 60s per key (matches the rate-limit window)
 - Resource limits: `cpu: 250m / 256Mi` (limit), `cpu: 50m / 64Mi` (request)
@@ -282,10 +282,10 @@ values for features I'd explicitly turn off anyway.
 Not used. The driver (`psycopg2-binary`) is in `requirements.txt` and `DATABASE_URL`
 appears in the Helm values, but no service code connects to a database. `values.yaml`
 even has a `postgresql:` config block (`enabled: true`, auth, persistence) shaped like
-a Bitnami subchart values override — except there's no PostgreSQL entry in `Chart.yaml`
+a Bitnami subchart values override - except there's no PostgreSQL entry in `Chart.yaml`
 `dependencies`, so that block does nothing. Leftover scaffolding, not a placeholder.
 
-Current state: `payments_store: Dict[str, Dict[str, Any]]` in Payments service —
+Current state: `payments_store: Dict[str, Dict[str, Any]]` in Payments service - 
 an in-memory dict that lives until the pod restarts. See [ADR-004](#adr-004-in-memory-storage-in-v010).
 
 ---
@@ -296,7 +296,7 @@ an in-memory dict that lives until the pod restarts. See [ADR-004](#adr-004-in-m
 
 Applied in both Dockerfiles:
 
-- `USER appuser` — non-root, dedicated user
+- `USER appuser` - non-root, dedicated user
 - `readOnlyRootFilesystem: true`
 - `allowPrivilegeEscalation: false`
 - `capDrop: [ALL]`
@@ -311,12 +311,12 @@ Applied in both Dockerfiles:
 ### Application Security
 
 - Pydantic validation on all inputs at the service boundary
-- No secrets hardcoded — environment variables only (`.env.mcp.example` for reference)
+- No secrets hardcoded - environment variables only (`.env.mcp.example` for reference)
 - Rate limiting at the API layer (60 req/min/tenant) limits abuse surface
 
 ### Not Yet Implemented
 
-- mTLS between services (would require service mesh — Envoy is a front proxy, not a sidecar in this setup)
+- mTLS between services (would require service mesh - Envoy is a front proxy, not a sidecar in this setup)
 - OAuth2/JWT authentication (the `X-Tenant` header is a placeholder)
 - Secrets manager integration (K8s Secrets for now)
 
@@ -324,16 +324,16 @@ Applied in both Dockerfiles:
 
 ## Deployment
 
-### Local — Docker Compose
+### Local - Docker Compose
 
 ```
 make dev
 ```
 
-Starts API, Payments, and Redis. No Envoy, no Traefik, no Prometheus in Compose —
+Starts API, Payments, and Redis. No Envoy, no Traefik, no Prometheus in Compose - 
 those live in Kubernetes. Good for fast iteration on service logic.
 
-### Kubernetes — Helm
+### Kubernetes - Helm
 
 Single parent chart (`deploy/helm/Chart.yaml`, version `0.1.0`) with two subcharts:
 
@@ -354,7 +354,7 @@ deploy/helm/
 |---------|-----------------|---------|---------|-----------------|
 | API | 2 | 2 | 5 | CPU > 70% or memory > 80% |
 | Payments | 2 | 1 | 3 | CPU > 70% or memory > 80% |
-| Envoy | 1 | — | — | No HPA (single proxy) |
+| Envoy | 1 | - | - | No HPA (single proxy) |
 
 **Pod Disruption Budgets**:
 
@@ -383,7 +383,7 @@ Tagged by git SHA on every push; additionally tagged `v*` on version tags.
 
 3 ServiceMonitors (API, Payments, Envoy admin port).
 
-Recording rules in `deploy/prometheus/rules.yaml` — 3 groups, 14 rules total:
+Recording rules in `deploy/prometheus/rules.yaml` - 3 groups, 14 rules total:
 
 **`envoy_metrics`**: request rate per cluster, 5xx error rate, p95 latency,
 active upstream connections, retry rate, outlier ejection rate, bulkhead overflow rate.
@@ -399,11 +399,11 @@ counters (from custom `rl_allowed_total` / `rl_denied_total` Prometheus counters
 
 2 dashboards shipped in `deploy/helm/dashboards/`:
 
-- **System Overview** — pod availability, request throughput, error rate
-- **Resilience** (Traffic & Latency) — retry rate, outlier ejections, rate-limit
+- **System Overview** - pod availability, request throughput, error rate
+- **Resilience** (Traffic & Latency) - retry rate, outlier ejections, rate-limit
   denials, bulkhead overflow, p95 latency
 
-Dashboards are provisioned via ConfigMap (Helm templates), not clicked together in UI —
+Dashboards are provisioned via ConfigMap (Helm templates), not clicked together in UI - 
 so they survive pod restarts and are version controlled.
 
 ### Loki + Promtail
@@ -421,7 +421,7 @@ Filterable in Loki with LogQL:
 
 ### Why This Much Observability for a Learning Project?
 
-Because the point of the project is resilience patterns — and you can't know if
+Because the point of the project is resilience patterns - and you can't know if
 your retry policy is doing anything without metrics. The Grafana panel showing
 `envoy:retries:rate5m` climbing during a SLOW_MODE chaos run is what validates
 the architecture, not the code itself.
@@ -450,7 +450,7 @@ the architecture, not the code itself.
 dedicated ports, and separate data stores.
 
 **Why**: A monolith would work fine at this scale. The microservices split is
-deliberate — it creates real distributed systems problems (inter-service latency,
+deliberate - it creates real distributed systems problems (inter-service latency,
 partial failures, independent scaling) that are the whole point of the project.
 
 **Trade-offs**:
@@ -472,7 +472,7 @@ support means `httpx.AsyncClient` in the API gateway doesn't block a thread per
 in-flight request to Payments.
 
 **Trade-offs**:
-- Uvicorn + FastAPI is not the leanest stack (compare to plain WSGI) — acceptable here
+- Uvicorn + FastAPI is not the leanest stack (compare to plain WSGI) - acceptable here
 - Async Python has an initial mental model cost; it earns its keep at the I/O layer
 
 ---
@@ -485,7 +485,7 @@ in-flight request to Payments.
 injected into every pod.
 
 **Why**: A full service mesh (Istio, Linkerd) would give me mTLS, per-pod telemetry,
-and more granular traffic control — but also a significant operational overhead for
+and more granular traffic control - but also a significant operational overhead for
 a single-node minikube cluster. A front proxy gives me retry, circuit breaking, and
 Envoy metrics (which are excellent) without the complexity of a mesh control plane.
 
@@ -493,7 +493,7 @@ Envoy metrics (which are excellent) without the complexity of a mesh control pla
 is unencrypted service-to-service. Acceptable for a sandboxed learning environment.
 
 **If this were production**: I'd move to Istio sidecars and add mTLS. The Envoy
-config knowledge transfers directly — same filter chains, same retry policy syntax.
+config knowledge transfers directly - same filter chains, same retry policy syntax.
 
 ---
 
@@ -503,7 +503,7 @@ config knowledge transfers directly — same filter chains, same retry policy sy
 
 **Decision**: Payments service uses an in-memory Python `dict` as its store.
 
-**Why**: v0.1.0 focused on the infrastructure layer — networking, resilience patterns,
+**Why**: v0.1.0 focused on the infrastructure layer - networking, resilience patterns,
 observability, CI/CD, security hardening. Adding a PostgreSQL ORM and migration tooling
 would have been real work that delayed the things I actually wanted to learn.
 
@@ -511,7 +511,7 @@ would have been real work that delayed the things I actually wanted to learn.
 - Payments data is lost on every pod restart or scale event
 - This is fine for chaos testing (I don't care about specific payment IDs)
 - The driver (`psycopg2-binary`) is installed and `DATABASE_URL` is wired into env vars,
-  but there's no actual PostgreSQL chart dependency or connection code yet — both are
+  but there's no actual PostgreSQL chart dependency or connection code yet - both are
   still missing, not just the connection code
 
 **Migration plan**: Add SQLAlchemy async + Alembic, create the `payments` table,
@@ -550,7 +550,7 @@ testing and chaos work.
 **Trade-offs**:
 - Local environment doesn't match production exactly (no Envoy, no NetworkPolicy)
 - Rate limiting still works locally (Redis in Compose)
-- For chaos tests, you need minikube — `make dev` is not enough
+- For chaos tests, you need minikube - `make dev` is not enough
 
 ---
 

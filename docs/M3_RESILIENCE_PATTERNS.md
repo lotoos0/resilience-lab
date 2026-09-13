@@ -23,7 +23,7 @@
 
 ### Why bother?
 
-Without rate limiting, one misbehaving tenant firing 10,000 req/s can ruin the day for everyone else. Redis as the backend gives us accurate per-window counting without race conditions — the pipeline of `ZREMRANGEBYSCORE + ZCARD + ZADD + EXPIRE` is effectively atomic at the "won't let more than N requests through" level.
+Without rate limiting, one misbehaving tenant firing 10,000 req/s can ruin the day for everyone else. Redis as the backend gives us accurate per-window counting without race conditions - the pipeline of `ZREMRANGEBYSCORE + ZCARD + ZADD + EXPIRE` is effectively atomic at the "won't let more than N requests through" level.
 
 ### How it works
 
@@ -43,7 +43,7 @@ else:
 **Configuration** (set in `services/api/main.py`):
 - Max requests: **60 per 60 seconds** per tenant
 - Tenant identification: `X-Tenant` header (defaults to `"default"`)
-- Redis key TTL: 60 s — inactive tenants clean themselves up
+- Redis key TTL: 60 s - inactive tenants clean themselves up
 
 **Response on limit exceeded**:
 ```json
@@ -99,7 +99,7 @@ Coverage: **>90%**
 
 ### Why "bulkhead"?
 
-Named after ship bulkheads — if one compartment floods, the rest of the vessel keeps sailing. Same idea here: if one upstream starts responding slowly and accumulates connections, we don't let it drain the entire proxy pool. Without limits, a single slow pod can stall all traffic through Envoy.
+Named after ship bulkheads - if one compartment floods, the rest of the vessel keeps sailing. Same idea here: if one upstream starts responding slowly and accumulates connections, we don't let it drain the entire proxy pool. Without limits, a single slow pod can stall all traffic through Envoy.
 
 ### Configuration (both `api_service` and `payments_service` clusters)
 
@@ -114,12 +114,12 @@ circuit_breakers:
 ```
 
 > **On the numbers**: these are intentionally tight, tuned for a dev/minikube environment
-> running 1–2 pods per service. Scale proportionally in production.
+> running 1-2 pods per service. Scale proportionally in production.
 
 ### How it works
 
 ```
-                    Envoy — Bulkhead
+                    Envoy - Bulkhead
 ┌──────────────────────────────────────────┐
 │  Connection Pool     max: 5              │
 │  [c1] [c2] [c3] [c4] [c5]              │
@@ -148,7 +148,7 @@ circuit_breakers:
 | `max_retries` | 3 | concurrent retry requests | retry skipped, original error returned |
 
 `max_retries: 3` is the anti-retry-storm guard. Imagine 50 clients each retrying twice after
-a 5xx — that's 150 concurrent retries hitting an already struggling upstream. The cap keeps
+a 5xx - that's 150 concurrent retries hitting an already struggling upstream. The cap keeps
 retries from becoming the cause of the outage they're trying to recover from.
 
 ---
@@ -159,7 +159,7 @@ retries from becoming the cause of the outage they're trying to recover from.
 **Implementation**: Envoy outlier detection
 **Location**: `deploy/envoy/envoy-config.yaml`
 
-### Bulkhead vs. Circuit Breaker — what's the difference?
+### Bulkhead vs. Circuit Breaker - what's the difference?
 
 A common source of confusion, so let's be explicit:
 
@@ -200,7 +200,7 @@ Pods: [Pod-A ✓] [Pod-B ✗] [Pod-C ✓]
                │
     Envoy round-robins traffic
                │
-    Pod-B returns 5xx — once, twice, three times
+    Pod-B returns 5xx - once, twice, three times
                │
     consecutive_5xx = 3 → EJECT Pod-B for 30s
                │
@@ -265,13 +265,13 @@ Client Request
 **Location**: `scripts/fault-inject.sh`
 
 ```bash
-# Inject 500 errors — exercises outlier detection
+# Inject 500 errors - exercises outlier detection
 ./scripts/fault-inject.sh failure
 
-# Inject 2s delay — per-try timeout (200ms) fires, expect 504s
+# Inject 2s delay - per-try timeout (200ms) fires, expect 504s
 ./scripts/fault-inject.sh slow
 
-# Kill a random pod — exercises retry + auto-recovery
+# Kill a random pod - exercises retry + auto-recovery
 ./scripts/fault-inject.sh kill
 
 # Clean up all injections
@@ -284,10 +284,10 @@ Client Request
 # Port-forward Envoy admin interface
 kubectl port-forward -n resilience-lab svc/envoy-proxy 9901:9901
 
-# Outlier detection — ejection events
+# Outlier detection - ejection events
 curl -s http://localhost:9901/stats | grep outlier_detection
 
-# Bulkhead — how many requests got rejected
+# Bulkhead - how many requests got rejected
 curl -s http://localhost:9901/stats | grep rq_pending_overflow
 
 # Retry stats
@@ -302,7 +302,7 @@ curl -s http://localhost:9901/stats | grep per_try_timeout
 ```bash
 kubectl port-forward -n resilience-lab svc/traefik 8080:80
 
-# Fire 65 requests — 60 should pass, 5 should get 429
+# Fire 65 requests - 60 should pass, 5 should get 429
 # Note: must use a rate-limited path. /api/healthz is rewritten to /healthz
 # by Envoy and skipped by the middleware. Use /api/ (→ GET /) instead.
 for i in {1..65}; do
@@ -344,9 +344,9 @@ watch -n 1 'curl -s http://localhost:9901/stats | grep rq_pending_overflow'
 |---|---|
 | `circuit_breakers.default.cx_active` | active connections (cap: 5) |
 | `circuit_breakers.default.rq_pending` | queued requests (cap: 5) |
-| `circuit_breakers.default.rq_pending_overflow` | **rejected requests** — the one to alert on |
+| `circuit_breakers.default.rq_pending_overflow` | **rejected requests** - the one to alert on |
 
-Alert on `rq_pending_overflow > 0` — it means the bulkhead is actually doing work.
+Alert on `rq_pending_overflow > 0` - it means the bulkhead is actually doing work.
 
 ### Circuit Breaker (Envoy)
 
@@ -370,8 +370,8 @@ Alert on `rq_pending_overflow > 0` — it means the bulkhead is actually doing w
 
 Two dashboards deployed as Helm ConfigMaps:
 
-- **Resilience Dashboard** (`grafana-dashboard-resilience.yaml`) — RPS, error rate, retries, ejections, p95/p99 latency
-- **System Overview** (`grafana-dashboard-system-overview.yaml`) — cluster health, pod resource usage
+- **Resilience Dashboard** (`grafana-dashboard-resilience.yaml`) - RPS, error rate, retries, ejections, p95/p99 latency
+- **System Overview** (`grafana-dashboard-system-overview.yaml`) - cluster health, pod resource usage
 
 ---
 
@@ -383,9 +383,9 @@ Two dashboards deployed as Helm ConfigMaps:
 - [Retry Semantics](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/http/http_routing#retry-semantics)
 
 **Internal docs**:
-- [Architecture](ARCHITECTURE.md) — system architecture overview
-- [M2 Fault Tests](M2_FAULT_TESTS.md) — raw test data from resilience experiments
-- [Deployment](DEPLOYMENT.md) — how to get this running
+- [Architecture](ARCHITECTURE.md) - system architecture overview
+- [M2 Fault Tests](M2_FAULT_TESTS.md) - raw test data from resilience experiments
+- [Deployment](DEPLOYMENT.md) - how to get this running
 
 ---
 
@@ -397,9 +397,9 @@ it matters:
 
 | # | Severity | What was wrong | What it is now |
 |---|---|---|---|
-| 1 | High | Rate-limit test used `/api/healthz` — Envoy rewrites it to `/healthz`, which is in `excluded_paths`. The 429s would never appear. | Changed to `/api/` (routes to `GET /`, not excluded) |
-| 2 | High | Response JSON showed `detail` + one `error` string. Actual middleware returns `error`, `message`, `limit`, `tenant` (4 fields). | Updated to match `rate_limit.py:68–75` |
-| 3 | Medium | Pseudocode used `ZCOUNT`. Actual pipeline: `ZREMRANGEBYSCORE` → `ZCARD` → `ZADD` → `EXPIRE`. Also: `ZADD` runs unconditionally — denied requests are counted too. | Pseudocode and architecture diagram rewritten |
+| 1 | High | Rate-limit test used `/api/healthz` - Envoy rewrites it to `/healthz`, which is in `excluded_paths`. The 429s would never appear. | Changed to `/api/` (routes to `GET /`, not excluded) |
+| 2 | High | Response JSON showed `detail` + one `error` string. Actual middleware returns `error`, `message`, `limit`, `tenant` (4 fields). | Updated to match `rate_limit.py:68-75` |
+| 3 | Medium | Pseudocode used `ZCOUNT`. Actual pipeline: `ZREMRANGEBYSCORE` → `ZCARD` → `ZADD` → `EXPIRE`. Also: `ZADD` runs unconditionally - denied requests are counted too. | Pseudocode and architecture diagram rewritten |
 | 4 | Medium | Metric names `rate_limit_allowed_total` / `rate_limit_blocked_total` / `rate_limit_errors_total` don't exist. Actual counters: `rl_allowed_total` / `rl_denied_total` (labeled by tenant). | Table corrected; non-existent error metric removed |
 | 5 | Low | For-loop in `bash` block used fish syntax (`for i in (seq…) / end`). | Replaced with `for i in {1..65}; do … done` |
 

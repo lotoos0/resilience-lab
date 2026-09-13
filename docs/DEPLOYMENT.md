@@ -1,6 +1,6 @@
 # Deployment
 
-**Resilience Lab — v0.1.0**
+**Resilience Lab - v0.1.0**
 
 *Last updated: 2026-06-23*
 
@@ -10,8 +10,8 @@
 
 - [Two Environments, One Rule](#two-environments-one-rule)
 - [Prerequisites](#prerequisites)
-- [Local — Docker Compose](#local--docker-compose)
-- [Kubernetes — minikube + Helm](#kubernetes--minikube--helm)
+- [Local - Docker Compose](#local--docker-compose)
+- [Kubernetes - minikube + Helm](#kubernetes--minikube--helm)
 - [Images & Registry](#images--registry)
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Chaos Testing Deployment](#chaos-testing-deployment)
@@ -31,7 +31,7 @@ There are two ways to run Resilience Lab, and they serve different purposes:
 
 My rule: if you're touching service logic, Compose is enough. If you're running
 chaos tests or validating observability, you need Kubernetes. I designed it this
-way on purpose — `make dev` won't give you Envoy retry metrics, and that's not a
+way on purpose - `make dev` won't give you Envoy retry metrics, and that's not a
 bug I forgot to fix, it's a boundary I drew so Compose stays fast and boring.
 
 ---
@@ -48,8 +48,8 @@ bug I forgot to fix, it's a boundary I drew so Compose stays fast and boring.
 
 Everything above, plus:
 
-- [minikube](https://minikube.sigs.k8s.io/) — local cluster
-- [kubectl](https://kubernetes.io/docs/tasks/tools/) — configured against minikube
+- [minikube](https://minikube.sigs.k8s.io/) - local cluster
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) - configured against minikube
 - [Helm](https://helm.sh/) 3+
 
 The Helm chart targets minikube. Running it against a remote cluster works, but
@@ -59,7 +59,7 @@ registry tags for both services. Tiny footgun, big `ImagePullBackOff` energy.
 
 ---
 
-## Local — Docker Compose
+## Local - Docker Compose
 
 ### Quick Start
 
@@ -69,10 +69,10 @@ git clone https://github.com/lotoos0/resilience-lab.git; cd resilience-lab; make
 
 That's it. Docker Compose starts 4 services in dependency order:
 
-1. **PostgreSQL** (postgres:16) — waits for `pg_isready`
-2. **Redis** (redis:7-alpine) — waits for `redis-cli ping`
-3. **Payments** — waits for PostgreSQL and Redis healthchecks
-4. **API** — waits for PostgreSQL, Redis, and Payments healthchecks; comes up last
+1. **PostgreSQL** (postgres:16) - waits for `pg_isready`
+2. **Redis** (redis:7-alpine) - waits for `redis-cli ping`
+3. **Payments** - waits for PostgreSQL and Redis healthchecks
+4. **API** - waits for PostgreSQL, Redis, and Payments healthchecks; comes up last
 
 Startup takes ~30s on a cold run (image pulls aside). The `depends_on: condition:
 service_healthy` chain means you won't hit a partially started stack.
@@ -111,18 +111,18 @@ make restart     # make down && make dev
 Docker Compose starts a PostgreSQL container and the services receive a
 `DATABASE_URL` env var. However, v0.1.0 service code does not open a PostgreSQL
 connection: Payments uses in-memory storage, and API does not use a database
-client at all. I left the container running anyway — it's groundwork for the
+client at all. I left the container running anyway - it's groundwork for the
 migration I haven't done yet, and it keeps the local env vars honest with what
 Kubernetes already expects. See [ADR-004 in
 ARCHITECTURE.md](ARCHITECTURE.md#adr-004-in-memory-storage-in-v010).
 
 ---
 
-## Kubernetes — minikube + Helm
+## Kubernetes - minikube + Helm
 
 ### First-Time Setup
 
-**Step 1** — start minikube and point Docker at its daemon:
+**Step 1** - start minikube and point Docker at its daemon:
 
 ```fish
 minikube start; eval (minikube docker-env)
@@ -133,17 +133,17 @@ All shell snippets in this section use `fish` syntax. If you're running
 different shell costume.
 
 The `eval` is essential. Without it, `docker build` writes images to the host
-daemon, not to minikube's — and your pods get `ImagePullBackOff` because they
+daemon, not to minikube's - and your pods get `ImagePullBackOff` because they
 look for images that don't exist inside the cluster.
 
-**Step 2** — build the local image that `values-dev.yaml` actually references:
+**Step 2** - build the local image that `values-dev.yaml` actually references:
 
 ```fish
 docker build -f services/payments/Dockerfile -t resilience-lab-payments:local .
 ```
 
 `values-dev.yaml` uses different strategies per service:
-- **Payments**: `repository: resilience-lab-payments`, `tag: local`, `pullPolicy: IfNotPresent` — picks up the locally built image above.
+- **Payments**: `repository: resilience-lab-payments`, `tag: local`, `pullPolicy: IfNotPresent` - picks up the locally built image above.
 - **API**: `repository: ghcr.io/lotoos0/resilience-lab-api`, `tag: 8b86f3d`. With `pullPolicy: IfNotPresent`, minikube reuses that exact image if it already exists locally; otherwise it pulls from GHCR.
 
 If you want a fully local API build too, override both repository and tag:
@@ -158,18 +158,18 @@ helm upgrade --install resilience-lab deploy/helm/ \
   --set api.image.tag=local
 ```
 
-**Step 3** — optional: generate TLS certs for the separate Traefik IngressRoute:
+**Step 3** - optional: generate TLS certs for the separate Traefik IngressRoute:
 
 ```fish
 ./scripts/generate-certs.sh
 ```
 
 Generates a self-signed RSA 2048 cert (365-day validity) for `resilience-lab.local`
-into `deploy/traefik/certs/`. These are gitignored — don't commit them. This
+into `deploy/traefik/certs/`. These are gitignored - don't commit them. This
 script only creates files; it does not create the Kubernetes TLS Secret or apply
 `deploy/traefik/ingressroute.yaml`.
 
-**Step 4** — install the Helm chart:
+**Step 4** - install the Helm chart:
 
 ```fish
 make helm-up-dev
@@ -198,13 +198,13 @@ kubectl create secret tls resilience-lab-tls \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-**Step 5** — optional but required for Envoy-based resilience checks:
+**Step 5** - optional but required for Envoy-based resilience checks:
 
 ```fish
 kubectl apply -f deploy/envoy/
 ```
 
-Envoy is not part of the Helm chart today — I haven't folded it in yet. The chart
+Envoy is not part of the Helm chart today - I haven't folded it in yet. The chart
 prepares some Envoy-facing policy/PDB objects, but the actual Envoy ConfigMap,
 Deployment, and Service live under `deploy/envoy/`. Yes, that split is a little
 spicy; I'm admitting it out loud here instead of pretending it's a design.
@@ -237,7 +237,7 @@ explicitly because it is exactly the kind of tiny stale hook that wastes 20
 minutes and then looks offended when you find it.
 
 No PostgreSQL or Envoy Deployment is rendered by the Helm chart today.
-`DATABASE_URL` is still present in service env vars as future groundwork — I'm
+`DATABASE_URL` is still present in service env vars as future groundwork - I'm
 keeping the wiring in place for whenever I actually build the persistence
 layer, but v0.1.0 service code does not depend on a live Kubernetes PostgreSQL pod.
 
@@ -285,7 +285,7 @@ after the Envoy service exists:
 ```
 
 Fires a request every 200ms to `localhost:8080/api/healthz` and prints the
-HTTP status code — useful for watching the system recover in real time.
+HTTP status code - useful for watching the system recover in real time.
 
 ### Day-to-Day Helm Operations
 
@@ -322,12 +322,12 @@ kubectl delete -f deploy/envoy/
 
 I add the rollout restart on purpose, every time, because reusing the same local
 tag means Kubernetes has no idea anything changed. It doesn't restart pods just
-because I rebuilt an image inside minikube — it needs a changed pod template or
+because I rebuilt an image inside minikube - it needs a changed pod template or
 an explicit nudge from me. Computers, sadly, do not smell fresh Docker layers.
 
 ### Observability Stack
 
-Prometheus/Grafana and Loki are not in the main Helm chart — they're deployed
+Prometheus/Grafana and Loki are not in the main Helm chart - they're deployed
 separately via kube-prometheus-stack and grafana/loki-stack. See
 [docs/observability.md](observability.md) for the full setup walkthrough.
 
@@ -352,17 +352,17 @@ Both images are based on `python:3.11-slim`. The builds run from the repo root
 
 **Payments image** (`services/payments/Dockerfile`):
 - Same as API, but also installs `iproute2`
-- `iproute2` ships the `tc` command — without it, `fault-inject.sh latency`
+- `iproute2` ships the `tc` command - without it, `fault-inject.sh latency`
   fails with a missing binary. This is why it's in the image used for chaos
   runs and not just in a local shell.
 - Port: `8001`
 
 Security baseline applied in both:
-- `RUN apt-get upgrade -y` — patches OS packages at build time
-- `pip install --no-cache-dir` — no pip cache left in the layer
-- `pip install --upgrade "wheel>=0.46.2"` — keeps the wheel package on a patched baseline
-- `USER appuser` — non-root at runtime
-- `HEALTHCHECK` — Docker-native probe on `/healthz`
+- `RUN apt-get upgrade -y` - patches OS packages at build time
+- `pip install --no-cache-dir` - no pip cache left in the layer
+- `pip install --upgrade "wheel>=0.46.2"` - keeps the wheel package on a patched baseline
+- `USER appuser` - non-root at runtime
+- `HEALTHCHECK` - Docker-native probe on `/healthz`
 
 ### Registry
 
@@ -374,9 +374,9 @@ ghcr.io/lotoos0/resilience-lab-payments
 ```
 
 Tags:
-- `<git-sha>` — a validated push to `main` or `develop`
-- `<version>` (e.g. `v0.1.0`) — a validated `v*` tag push
-- `latest` — updated only by a validated push to `main`
+- `<git-sha>` - a validated push to `main` or `develop`
+- `<version>` (e.g. `v0.1.0`) - a validated `v*` tag push
+- `latest` - updated only by a validated push to `main`
 
 Pull requests never publish images. A `develop` push publishes only its immutable
 SHA tag, so development builds cannot overwrite `latest`. Release tags publish
@@ -399,7 +399,7 @@ If I ever flip that visibility, you'd need to authenticate first with
 One GitHub Actions workflow in `.github/workflows/` validates changes and gates
 image publication for the same commit.
 
-### CI/CD (`ci.yml`) — PRs, branch pushes, and `v*` tags
+### CI/CD (`ci.yml`) - PRs, branch pushes, and `v*` tags
 
 Runs six jobs. `lint`, `trivy-fs`, and `test` run in parallel. `integration-test`
 and `build` both need `lint` and `test` to pass first. `publish` then requires
@@ -423,7 +423,7 @@ trivy-fs ───────────┘
 | `publish` | For push events only, rebuilds the exact validated SHA and publishes both images according to the ref-specific tag policy |
 
 **Note on CI service containers**: The test job spins up postgres:16 and
-redis:7-alpine — but the unit tests mock both (Redis via `unittest.mock.Mock`,
+redis:7-alpine - but the unit tests mock both (Redis via `unittest.mock.Mock`,
 PostgreSQL is unused entirely). The containers are there as groundwork for
 future integration-level unit tests, not because anything currently requires
 a live connection.
@@ -491,13 +491,13 @@ kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 ```
 
 `values-chaos.yaml` currently enables both `NET_ADMIN` and `runAsRoot: true` for
-Payments — `NET_ADMIN` alone wasn't enough on my cluster, `tc netem` still
+Payments - `NET_ADMIN` alone wasn't enough on my cluster, `tc netem` still
 refused to behave at uid 1000, so I dropped to root for chaos runs only. It's
 for active experiments, not a baseline; restore `values-dev.yaml` afterwards.
 
 ### FAIL_MODE and SLOW_MODE
 
-Inject via env var — triggers an automatic rolling update (new pods come up with
+Inject via env var - triggers an automatic rolling update (new pods come up with
 the new env var, old ones terminate):
 
 ```fish
@@ -533,14 +533,14 @@ procedures with expected Grafana outputs.
 | Script | What it does |
 |--------|-------------|
 | `fault-inject.sh latency` | 300ms `tc netem` delay on all Payments pods |
-| `fault-inject.sh failure` | `FAIL_MODE=1` — Payments returns HTTP 500 |
-| `fault-inject.sh slow` | `SLOW_MODE=1` — Payments delays 2s |
+| `fault-inject.sh failure` | `FAIL_MODE=1` - Payments returns HTTP 500 |
+| `fault-inject.sh slow` | `SLOW_MODE=1` - Payments delays 2s |
 | `fault-inject.sh kill` | Deletes one Payments pod |
 | `fault-inject.sh cleanup` | Removes all injections |
 | `generate-certs.sh` | Self-signed RSA 2048 cert for `resilience-lab.local` (365 days) |
-| `health-loop.sh` | Fires requests every 200ms, prints HTTP status — live recovery monitor |
+| `health-loop.sh` | Fires requests every 200ms, prints HTTP status - live recovery monitor |
 
-`pg_backup.sh` and `redis_backup.sh` are empty stubs — PostgreSQL isn't wired
+`pg_backup.sh` and `redis_backup.sh` are empty stubs - PostgreSQL isn't wired
 up yet, and Redis counters are ephemeral by design (TTL 60s). Nothing worth
 backing up at this stage.
 
@@ -586,7 +586,7 @@ helm upgrade resilience-lab deploy/helm/ -n resilience-lab \
 
 See [runbooks/TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md](runbooks/TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md).
 
-### Pod not starting — general
+### Pod not starting - general
 
 ```fish
 kubectl get pods -n resilience-lab

@@ -19,7 +19,7 @@ postgresql:
 # Plain Deployment+Service (deploy/helm/templates/redis-*.yaml), not a Bitnami
 # subchart: the rate-limit middleware only needs an atomic shared store for
 # sliding-window counters (ephemeral by nature, TTL = 60s), so an emptyDir is
-# enough — no persistence/auth/replication required.
+# enough - no persistence/auth/replication required.
 redis:
   enabled: true
   image:

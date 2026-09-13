@@ -414,7 +414,7 @@
           "refId": "A"
         }
       ],
-      "title": "Envoy Retries — rate 5m",
+      "title": "Envoy Retries - rate 5m",
       "type": "timeseries"
     },
     {
@@ -513,7 +513,7 @@
           "refId": "A"
         }
       ],
-      "title": "Outlier Ejections — rate 5m",
+      "title": "Outlier Ejections - rate 5m",
       "type": "timeseries"
     },
     {
@@ -612,7 +612,7 @@
           "refId": "A"
         }
       ],
-      "title": "Rate Limit Denials / 429 — rate 5m",
+      "title": "Rate Limit Denials / 429 - rate 5m",
       "type": "timeseries"
     },
     {
@@ -711,7 +711,7 @@
           "refId": "A"
         }
       ],
-      "title": "Envoy Bulkhead Overflow — rate 5m",
+      "title": "Envoy Bulkhead Overflow - rate 5m",
       "type": "timeseries"
     }
   ],
@@ -821,7 +821,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Resilience Lab – Traffic & Latency",
+  "title": "Resilience Lab - Traffic & Latency",
   "uid": "resilience-core",
   "version": 1
 }

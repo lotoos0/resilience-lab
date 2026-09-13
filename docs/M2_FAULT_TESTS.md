@@ -1,13 +1,13 @@
 # M2 Fault Injection Tests
 
-> **Author's note:** This is the M2 fault injection test log — 4 scenarios, 3 passes, 1
+> **Author's note:** This is the M2 fault injection test log - 4 scenarios, 3 passes, 1
 > intentional block. All raw data (Envoy counters, request timings, pod events) is preserved
 > exactly as captured. The blocked scenario (network-level latency via `tc`) is arguably the
 > most interesting result: security constraints stopped the attack before it could even start,
 > which is precisely what they're supposed to do.
 >
 > The "Next Steps (M3 Scope)" section at the bottom reflects what was planned after M2.
-> M3 has since shipped — these points are historical context, not an open TODO list.
+> M3 has since shipped - these points are historical context, not an open TODO list.
 >
 > *Docs style updated: 2026-06-25. Test execution date unchanged: 01.12.2025.*
 
@@ -30,7 +30,7 @@
 ### 1. Outlier Ejection (Circuit Breaker)
 
 **Objective**: Confirm that Envoy automatically ejects unhealthy pods after 3 consecutive
-5xx errors — and that the system keeps serving traffic from the remaining healthy pods
+5xx errors - and that the system keeps serving traffic from the remaining healthy pods
 without any manual intervention.
 
 **Setup:**
@@ -81,7 +81,7 @@ upstream_rq_504:                           11
 ```
 
 **Observations:**
-- ✅ Outlier detection triggered 13 times — 1 was detected but overflowed the `max_ejection_percent: 50` cap, so 12 were actually enforced. The math checks out.
+- ✅ Outlier detection triggered 13 times - 1 was detected but overflowed the `max_ejection_percent: 50` cap, so 12 were actually enforced. The math checks out.
 - ✅ 22 retries attempted with exponential backoff, exactly as configured.
 - ✅ System ejected failing pods without being asked. Self-healing worked.
 - ⚠️ 504s appeared because FAIL_MODE causes API → Payments to time out, not because the circuit breaker misfired. The ejection mechanism itself is fine; the timeout tuning isn't (see Observations in Conclusions).
@@ -98,7 +98,7 @@ upstream_rq_504:                           11
 ### 2. Retry Policy
 
 **Objective**: Verify that Envoy automatically retries failed requests on healthy pods when
-a pod is killed mid-traffic — and that Kubernetes brings the pod back on its own.
+a pod is killed mid-traffic - and that Kubernetes brings the pod back on its own.
 
 **Setup:**
 
@@ -140,9 +140,9 @@ New pod came online within ~30 seconds
 
 **Observations:**
 - ✅ 22 retry attempts triggered during the disruption window.
-- ✅ Kubernetes recreated the deleted pod without prompting — new pod online in ~30s.
+- ✅ Kubernetes recreated the deleted pod without prompting - new pod online in ~30s.
 - ✅ PDB (`minAvailable: 1`) held the line: at least one pod stayed available throughout.
-- ⚠️ `upstream_rq_retry_success: 0` — all retries exhausted because FAIL_MODE was still
+- ⚠️ `upstream_rq_retry_success: 0` - all retries exhausted because FAIL_MODE was still
   active underneath. The retry mechanism itself worked; it just had nowhere healthy to land.
   This is a test isolation issue, not a retry bug.
 
@@ -159,7 +159,7 @@ New pod came online within ~30 seconds
 ### 3. Timeout Policy
 
 **Objective**: Verify that slow requests are cut off before they can exhaust upstream
-resources — specifically that Envoy's `per_try_timeout: 2s` fires consistently and the
+resources - specifically that Envoy's `per_try_timeout: 2s` fires consistently and the
 client never hangs indefinitely.
 
 **Setup:**
@@ -214,12 +214,12 @@ upstream_rq_timeout:                        0
 ```
 
 **Observations:**
-- ✅ Per-try timeout (2s) fired on every attempt — 120 timeouts across all 10 requests × 3
+- ✅ Per-try timeout (2s) fired on every attempt - 120 timeouts across all 10 requests × 3
   attempts. Consistent to an almost suspicious degree.
 - ✅ Total wall time of ~6050ms = 3 attempts × 2s. The arithmetic matches the config exactly.
-- ✅ `upstream_rq_timeout: 0` — the outer 10s request timeout was never needed. The
+- ✅ `upstream_rq_timeout: 0` - the outer 10s request timeout was never needed. The
   per-try mechanism handled it first.
-- ✅ No request hung. No resource leaked. The `504` response is ugly but intentional —
+- ✅ No request hung. No resource leaked. The `504` response is ugly but intentional - 
   it's the correct signal that the proxy gave up rather than waiting forever.
 
 **Expected Behavior:**
@@ -235,7 +235,7 @@ upstream_rq_timeout:                        0
 ### 4. Latency Injection (Network-Level)
 
 **Objective**: Attempt network-level latency injection using Linux `tc` (traffic control)
-to add 300ms to payments pod traffic. Spoiler: this didn't work — and that's the point.
+to add 300ms to payments pod traffic. Spoiler: this didn't work - and that's the point.
 
 **Setup:**
 
@@ -256,17 +256,17 @@ command terminated with exit code 127
 
 **Root Cause Analysis:**
 
-Network-level latency injection is blocked by three independent security constraints —
+Network-level latency injection is blocked by three independent security constraints - 
 any one of them would have been sufficient on its own:
 
 1. **Read-only root filesystem** (`readOnlyRootFilesystem: true`)
-   — Can't install `iproute2`, can't write to system paths.
+    - Can't install `iproute2`, can't write to system paths.
 
 2. **Dropped Linux capabilities** (`capabilities: drop: ALL`)
-   — `tc` requires `NET_ADMIN`. It's gone. Intentionally.
+    - `tc` requires `NET_ADMIN`. It's gone. Intentionally.
 
 3. **Non-root user** (`runAsUser: 1000, runAsNonRoot: true`)
-   — No package installs, no network config changes.
+    - No package installs, no network config changes.
 
 **Security Configuration** (from `payments/deployment.yaml`):
 ```yaml
@@ -281,22 +281,22 @@ securityContext:
 ```
 
 This is defense-in-depth working exactly as designed. The container cannot be weaponized
-as a network manipulation tool from inside — which is the guarantee we want in production.
+as a network manipulation tool from inside - which is the guarantee we want in production.
 
 **Alternatives for latency chaos:**
 
-1. **Application-level delays** (✅ Currently implemented — used in Scenario 3)
+1. **Application-level delays** (✅ Currently implemented - used in Scenario 3)
    ```python
    SLOW_MODE = os.getenv("SLOW_MODE", "0") == "1"
    if SLOW_MODE:
        time.sleep(2)  # 2s delay
    ```
 
-2. **Sidecar chaos engineering tools** — Chaos Mesh, Litmus Chaos, Pumba
+2. **Sidecar chaos engineering tools** - Chaos Mesh, Litmus Chaos, Pumba
 
-3. **Service mesh fault injection** — Istio VirtualService, Linkerd fault injection
+3. **Service mesh fault injection** - Istio VirtualService, Linkerd fault injection
 
-4. **Envoy fault filter** (cleanest option — no sidecar, no app change needed)
+4. **Envoy fault filter** (cleanest option - no sidecar, no app change needed)
    ```yaml
    http_filters:
      - name: envoy.filters.http.fault
@@ -306,7 +306,7 @@ as a network manipulation tool from inside — which is the guarantee we want in
            percentage: 100
    ```
 
-**Status:** ⚠️ BLOCKED (Expected — defense-in-depth security working as designed)
+**Status:** ⚠️ BLOCKED (Expected - defense-in-depth security working as designed)
 
 This is **not a test failure**. It's a confirmation that security constraints hold under
 attempted exploitation. Application-level fault injection (FAIL_MODE, SLOW_MODE) provides
@@ -331,7 +331,7 @@ deployment.apps/resilience-lab-payments env updated
 ```
 
 Environment variables (FAIL_MODE, SLOW_MODE) reset. All injected faults removed in a
-single command — no manual pod restarts, no leftover env vars, no lingering chaos.
+single command - no manual pod restarts, no leftover env vars, no lingering chaos.
 
 ---
 
@@ -353,51 +353,51 @@ single command — no manual pod restarts, no leftover env vars, no lingering ch
 ### ✅ Successes
 
 1. **Outlier Detection Working**
-   — 13 detections, 12 enforced ejections, 1 overflow absorbed by the 50% cap.
+    - 13 detections, 12 enforced ejections, 1 overflow absorbed by the 50% cap.
    Pods return to the pool after 30s automatically. Cascading failure: prevented.
 
 2. **Retry Policy Active**
-   — 2 retries configured, exponential backoff firing, retry limit preventing infinite
+    - 2 retries configured, exponential backoff firing, retry limit preventing infinite
    loops. The `upstream_rq_retry_success: 0` result is a FAIL_MODE artifact, not a
    retry bug.
 
 3. **Timeout Policy Effective**
-   — 120 per-try timeouts, 0 request-level timeouts, ~6050ms average wall time across
+    - 120 per-try timeouts, 0 request-level timeouts, ~6050ms average wall time across
    10/10 requests. Mathematically consistent: 3 × 2s = 6s. No hangs.
 
 4. **System Self-Heals**
-   — Pod killed → pod recreated in ~30s → no manual restart needed. PDB (`minAvailable: 1`)
+    - Pod killed → pod recreated in ~30s → no manual restart needed. PDB (`minAvailable: 1`)
    kept at least one instance up throughout.
 
 5. **Security First**
-   — Read-only FS + dropped capabilities + non-root blocked the `tc`-based attack
+    - Read-only FS + dropped capabilities + non-root blocked the `tc`-based attack
    completely. Three independent barriers, any one sufficient on its own.
 
 ### ⚠️ Observations
 
 1. **Timeout Tuning Needed**
-   — API httpx timeout (5s) + Payments SLOW_MODE delay (2s) interacts awkwardly with
+    - API httpx timeout (5s) + Payments SLOW_MODE delay (2s) interacts awkwardly with
    Envoy's `per_try_timeout: 2s`. The Payments delay alone hits the per-try limit,
    causing 504s even on technically "working" requests. Fix: raise `per_try_timeout`
-   to 3–4s, or lower the application-level delay.
+   to 3-4s, or lower the application-level delay.
 
 2. **FAIL_MODE Cascading**
-   — Payments 500 → API timeout → Envoy 504 → outlier detection triggers on API pods,
-   not Payments. Traffic never hits Payments directly in this topology — so ejection
+    - Payments 500 → API timeout → Envoy 504 → outlier detection triggers on API pods,
+   not Payments. Traffic never hits Payments directly in this topology - so ejection
    stats are API-side only. Worth keeping in mind when reading the counters.
 
 3. **Monitoring Gaps (at time of M2)**
-   — No Prometheus metrics for outlier ejections yet. Manual Envoy admin stat queries
+    - No Prometheus metrics for outlier ejections yet. Manual Envoy admin stat queries
    required. No alerting on high ejection rates. All of this landed in M3.
 
 ### 🎯 M2 Resilience Goals
 
-- ✅ **Outlier ejection test pass** — 12 enforced ejections
-- ✅ **Retry policy functional** — 22 retries attempted
-- ✅ **Timeout policy prevents hangs** — 120 per-try timeouts, 0 hung requests
-- ✅ **System stabilizes automatically** — no manual restart needed
-- ✅ **Fault-inject scripts reproducible** — all 4 modes tested
-- ✅ **Security not compromised** — defense-in-depth held
+- ✅ **Outlier ejection test pass** - 12 enforced ejections
+- ✅ **Retry policy functional** - 22 retries attempted
+- ✅ **Timeout policy prevents hangs** - 120 per-try timeouts, 0 hung requests
+- ✅ **System stabilizes automatically** - no manual restart needed
+- ✅ **Fault-inject scripts reproducible** - all 4 modes tested
+- ✅ **Security not compromised** - defense-in-depth held
 
 **M2 Definition of Done:** ✅ **ALL CRITERIA MET**
 
@@ -405,17 +405,17 @@ single command — no manual pod restarts, no leftover env vars, no lingering ch
 
 ## Next Steps (M3 Scope)
 
-> These items were planned after M2. M3 has since shipped — this section is historical.
+> These items were planned after M2. M3 has since shipped - this section is historical.
 
-1. **Tune Timeout Values** — align `per_try_timeout` with actual service latencies.
+1. **Tune Timeout Values** - align `per_try_timeout` with actual service latencies.
 
-2. **Add Prometheus Metrics** — export Envoy outlier/retry/timeout counters, build dashboards.
+2. **Add Prometheus Metrics** - export Envoy outlier/retry/timeout counters, build dashboards.
 
-3. **Implement Alerting** — fire on high ejection rates, retry exhaustion, elevated 504 rates.
+3. **Implement Alerting** - fire on high ejection rates, retry exhaustion, elevated 504 rates.
 
-4. **Automated Chaos Testing** — fault injection in CI, scheduled pod kills, pre-prod experiments.
+4. **Automated Chaos Testing** - fault injection in CI, scheduled pod kills, pre-prod experiments.
 
-5. **Envoy Fault Filter** — native latency injection without touching the application or dropping `NET_ADMIN`.
+5. **Envoy Fault Filter** - native latency injection without touching the application or dropping `NET_ADMIN`.
 
 ---
 

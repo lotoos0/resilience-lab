@@ -1,4 +1,4 @@
-# Runbook: Minikube — ImagePullBackOff for Local Images
+# Runbook: Minikube - ImagePullBackOff for Local Images
 
 **Status:** Active
 **Owner:** DevOps Team
@@ -30,7 +30,7 @@ kubectl logs -n resilience-lab <pod-name>
 
 ## Root Cause
 
-Minikube has its **own isolated Docker daemon** — separate from the system Docker on the host. An image built with `docker build` on the host is not visible inside the minikube cluster.
+Minikube has its **own isolated Docker daemon** - separate from the system Docker on the host. An image built with `docker build` on the host is not visible inside the minikube cluster.
 
 Additionally, `values.yaml` may have a wrong `repository` or `tag` pointing to a non-existent image in an external registry.
 
@@ -71,7 +71,7 @@ docker info | grep "Name:"
 docker build -f services/<service>/Dockerfile -t <image-name>:local .
 ```
 
-The image lands directly in the cluster — no import step needed.
+The image lands directly in the cluster - no import step needed.
 
 ### Step 3: Update values.yaml
 
@@ -84,7 +84,7 @@ image:
   pullPolicy: IfNotPresent
 ```
 
-`IfNotPresent` — the cluster uses the local image and does not attempt to pull from a registry.
+`IfNotPresent` - the cluster uses the local image and does not attempt to pull from a registry.
 
 ### Step 4: Deploy the updated image
 
@@ -122,18 +122,18 @@ kubectl logs -n resilience-lab -l app.kubernetes.io/name=<service> --tail=20
 ## Prevention / Long-term Fix
 
 - Always build images via `eval $(minikube docker-env)` when working with a local cluster
-- Set `pullPolicy: IfNotPresent` for local images — never `Always` (forces pull from registry)
+- Set `pullPolicy: IfNotPresent` for local images - never `Always` (forces pull from registry)
 - Use a consistent tag (`local`) for local builds to distinguish them from registry images
 
 ## Common Pitfalls / Gotchas
 
-- `eval $(minikube docker-env)` applies only to the current terminal session — repeat it in every new terminal
-- `pullPolicy: Always` ignores local images and always tries to pull from a registry — do not use with local builds
+- `eval $(minikube docker-env)` applies only to the current terminal session - repeat it in every new terminal
+- `pullPolicy: Always` ignores local images and always tries to pull from a registry - do not use with local builds
 - For k3d instead of minikube: `k3d image import <image> -c <cluster>`
 
 ## Additional Resources
 
-- [TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md](TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md) — if helm upgrade fails after building the image
+- [TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md](TROUBLESHOOTING_HELM_FIELD_CONFLICTS.md) - if helm upgrade fails after building the image
 
 ## Change History
 

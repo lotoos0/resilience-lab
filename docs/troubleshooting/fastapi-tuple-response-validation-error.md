@@ -10,7 +10,7 @@
 
 `GET /payments/{id}` returned HTTP 500 instead of HTTP 404 when the payment
 ID didn't exist. The kind of bug that sits quietly in production until
-someone notices the error rate — no alert, no obvious cause, just a generic
+someone notices the error rate - no alert, no obvious cause, just a generic
 500 that tells the caller nothing.
 
 ## Symptoms
@@ -23,12 +23,12 @@ return {"error": "payment not found"}, 404
 ```
 
 - Clients received HTTP 500 with no useful error message.
-- Bug was silent — no test covered the negative path, so it went undetected
+- Bug was silent - no test covered the negative path, so it went undetected
   until I added one.
 
 ## Why it happened
 
-FastAPI is not Flask. `return body, status_code` is a Flask pattern — in
+FastAPI is not Flask. `return body, status_code` is a Flask pattern - in
 FastAPI, the returned tuple `(dict, int)` is treated as the response body
 itself, not as body + status code.
 
@@ -40,7 +40,7 @@ of the real cause.
 
 ## Fix
 
-One line — swap the tuple return for `HTTPException`:
+One line - swap the tuple return for `HTTPException`:
 
 ```python
 from fastapi import HTTPException
@@ -64,8 +64,8 @@ production indefinitely.
 
 ## Prevention
 
-- FastAPI is not Flask — `return body, status_code` does not work. Use
+- FastAPI is not Flask - `return body, status_code` does not work. Use
   `HTTPException` for all error responses, `JSONResponse` only when you need
   full control over headers or body.
 - Always test negative paths. The happy path passing is not proof the error
-  path works — they're separate code branches.
+  path works - they're separate code branches.

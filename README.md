@@ -14,7 +14,7 @@
 
 **A Kubernetes sandbox for practicing cloud-native failure patterns before they hit production.**
 
-This project gives you a realistic microservices environment — FastAPI, Redis — with observability, rate limiting, and resilience policies already configured. The idea is simple: break things here on purpose,
+This project gives you a realistic microservices environment - FastAPI, Redis - with observability, rate limiting, and resilience policies already configured. The idea is simple: break things here on purpose,
 learn how they fail, and carry that knowledge to production. Not a toy demo. Not a tutorial app.
 A working lab you can actually deploy and run experiments on.
 
@@ -25,7 +25,7 @@ A working lab you can actually deploy and run experiments on.
 Most demo apps only show the happy path. Resilience Lab is built for the opposite case.
 
 It helps you practice what happens when services slow down, crash, overload Redis, hit rate limits,
-or start returning 5xx errors — with real Kubernetes, Envoy policies, metrics, logs, dashboards,
+or start returning 5xx errors - with real Kubernetes, Envoy policies, metrics, logs, dashboards,
 alerts, and runbooks in place.
 
 Use it to practice DevOps/SRE workflows, test failure scenarios, and show a working Kubernetes-based project in your portfolio.
@@ -34,12 +34,12 @@ Use it to practice DevOps/SRE workflows, test failure scenarios, and show a work
 
 ## What's in the box
 
-- **API + Payments services** — FastAPI, Python 3.11, Prometheus metrics, per-tenant rate limiting backed by Redis
-- **Networking layer** — Traefik ingress → Envoy front-proxy (retry, per-try timeout, circuit breaker, outlier ejection, bulkhead)
-- **Observability** — Prometheus + Grafana (System Overview + Traffic & Latency dashboards), Loki + Promtail logs, alert rules
-- **Kubernetes-ready** — Helm charts, HPA, PDB, NetworkPolicy, non-root security baseline
-- **CI/CD** — GitHub Actions: lint → test → integration → security/build gates → publish the validated SHA to GHCR
-- **Chaos engineering** — fault injection scripts (failure, latency, pod kill) + operational runbooks
+- **API + Payments services** - FastAPI, Python 3.11, Prometheus metrics, per-tenant rate limiting backed by Redis
+- **Networking layer** - Traefik ingress → Envoy front-proxy (retry, per-try timeout, circuit breaker, outlier ejection, bulkhead)
+- **Observability** - Prometheus + Grafana (System Overview + Traffic & Latency dashboards), Loki + Promtail logs, alert rules
+- **Kubernetes-ready** - Helm charts, HPA, PDB, NetworkPolicy, non-root security baseline
+- **CI/CD** - GitHub Actions: lint → test → integration → security/build gates → publish the validated SHA to GHCR
+- **Chaos engineering** - fault injection scripts (failure, latency, pod kill) + operational runbooks
 
 ---
 
@@ -75,14 +75,14 @@ make down                            # stop everything
 ## Kubernetes (Helm)
 
 ```bash
-# Create a local cluster — k3d is the recommended option
+# Create a local cluster - k3d is the recommended option
 k3d cluster create resilience-cluster --api-port 6550 --servers 1 --agents 2 --port "8080:80@loadbalancer"
 
 # Deploy
 make helm-deps
 make helm-up-dev
 
-# Envoy isn't part of the Helm chart yet — apply it separately for retries/circuit breaker
+# Envoy isn't part of the Helm chart yet - apply it separately for retries/circuit breaker
 kubectl apply -f deploy/envoy/
 
 # Verify
@@ -100,16 +100,16 @@ See [Architecture](docs/ARCHITECTURE.md) for system design, ADRs, and design pat
 
 ---
 
-## Current state — v0.1.0 released
+## Current state - v0.1.0 released
 
-v0.1.0 is the first full Resilience Lab release. M0–M3 are complete, and the
+v0.1.0 is the first full Resilience Lab release. M0-M3 are complete, and the
 full stack is working and validated end to end.
 
 **Resilience primitives:**
-- ✅ Rate limiting — Redis-backed, per-tenant, k6 validated
+- ✅ Rate limiting - Redis-backed, per-tenant, k6 validated
 - ✅ Envoy retry with per-try timeout (200ms) and exponential backoff
-- ✅ Outlier ejection, circuit breaker, bulkhead — tuned and stress-tested
-- ✅ HPA + PDB — auto-scaling and disruption budget validated under load
+- ✅ Outlier ejection, circuit breaker, bulkhead - tuned and stress-tested
+- ✅ HPA + PDB - auto-scaling and disruption budget validated under load
 
 **Observability:**
 - ✅ Prometheus metrics + ServiceMonitors + recording rules
@@ -118,8 +118,8 @@ full stack is working and validated end to end.
 - ✅ Loki + Promtail log aggregation, LogQL in Grafana Explore
 
 **Chaos engineering:**
-- ✅ Latency injection — 300ms tc netem delay on Payments, Grafana evidence captured
-- ✅ Pod kill — auto-recovery ~15s, HPA/PDB behavior documented
+- ✅ Latency injection - 300ms tc netem delay on Payments, Grafana evidence captured
+- ✅ Pod kill - auto-recovery ~15s, HPA/PDB behavior documented
 - ✅ Runbooks: chaos-pod-kill, chaos-latency-injection, rollback-vs-recover
 
 Release notes: [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)
@@ -139,10 +139,10 @@ Requires the Helm deployment to be running (`make helm-up-dev`).
 # Kill a Payments pod (tests auto-recovery, HPA, PDB behavior)
 ./scripts/fault-inject.sh kill
 
-# Inject failures — Payments returns 500 (triggers outlier ejection)
+# Inject failures - Payments returns 500 (triggers outlier ejection)
 ./scripts/fault-inject.sh failure
 
-# Inject slowness — Payments delays 2 seconds (triggers timeouts and retries)
+# Inject slowness - Payments delays 2 seconds (triggers timeouts and retries)
 ./scripts/fault-inject.sh slow
 
 # Cleanup all injections
@@ -186,11 +186,11 @@ Coding standards, project structure, and onboarding: [docs/DEVELOPMENT.md](docs/
 | [Security](docs/security.md) | Security baseline, CVE patching, Trivy |
 | [M3 Resilience Patterns](docs/M3_RESILIENCE_PATTERNS.md) | Rate limiting, bulkhead, load tests |
 | [Runbooks](docs/runbooks/README.md) | Operational runbooks: chaos, observability, troubleshooting |
-| [Postmortem](docs/postmortem.md) | v0.1.0 retrospective — what worked, what didn't, what's next |
+| [Postmortem](docs/postmortem.md) | v0.1.0 retrospective - what worked, what didn't, what's next |
 | [Contributing](CONTRIBUTING.md) | PR process, commit format |
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

@@ -1,6 +1,6 @@
 # Evidence Snapshots
 
-These are frozen evidence snapshots referenced by runbooks — they are not live cluster state.
+These are frozen evidence snapshots referenced by runbooks - they are not live cluster state.
 
 | File | Referenced by |
 |------|--------------|

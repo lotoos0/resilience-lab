@@ -124,7 +124,7 @@ helm history resilience-lab -n resilience-lab
 
 ### HPA
 
-HPA scales based on CPU/memory. If metrics-server is unavailable, HPA will not scale — the Deployment holds its current replica count. A single pod kill without HPA scaling means there is a brief capacity reduction until the replacement is ready.
+HPA scales based on CPU/memory. If metrics-server is unavailable, HPA will not scale - the Deployment holds its current replica count. A single pod kill without HPA scaling means there is a brief capacity reduction until the replacement is ready.
 
 If HPA is working and the replacement pod comes up healthy, HPA will continue normal operation. No manual intervention needed.
 
@@ -132,7 +132,7 @@ If HPA is working and the replacement pod comes up healthy, HPA will continue no
 
 `resilience-lab-payments-pdb` requires MIN AVAILABLE=1.
 
-- If only 1 replica is running, ALLOWED DISRUPTIONS=0 — voluntary evictions (e.g. `kubectl drain`) are blocked.
+- If only 1 replica is running, ALLOWED DISRUPTIONS=0 - voluntary evictions (e.g. `kubectl drain`) are blocked.
 - Direct `kubectl delete pod` bypasses PDB and proceeds regardless.
 - After recovery, PDB resets automatically when the replacement pod becomes Ready.
 

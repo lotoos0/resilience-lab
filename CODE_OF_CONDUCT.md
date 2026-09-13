@@ -1,6 +1,6 @@
 # Code of Conduct
 
-Resilience Lab is a small open project. There's no large community here — mostly
+Resilience Lab is a small open project. There's no large community here - mostly
 just one maintainer and occasional contributors. But the rules below apply regardless
 of project size, because they're just about basic decency.
 
@@ -18,9 +18,9 @@ If something goes wrong, email **andii4444@gmail.com**.
 
 - Treat people with respect, regardless of experience level, background, or opinion
 - Give feedback on ideas and code, not on people
-- Accept that others may have different approaches — disagree with reasoning, not with the person
+- Accept that others may have different approaches - disagree with reasoning, not with the person
 - If you make a mistake, own it and move on
-- Help newcomers when you can — everyone started somewhere
+- Help newcomers when you can - everyone started somewhere
 
 ---
 
@@ -50,7 +50,7 @@ Depending on severity:
 
 - A private note explaining what was wrong and why
 - A warning with a clear expectation of behavior going forward
-- Removal from the project — temporary or permanent
+- Removal from the project - temporary or permanent
 
 Appeals go to the same email. I'll review and respond.
 

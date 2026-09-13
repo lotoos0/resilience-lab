@@ -44,7 +44,7 @@ registered under two different module names:
 
 Python treats these as two separate modules, so `rate_limit.py` was executed
 twice. Each execution registered its module-level
-`Counter("rl_allowed_total", ...)` in the global `CollectorRegistry` — the
+`Counter("rl_allowed_total", ...)` in the global `CollectorRegistry` - the
 second registration raised `ValueError: Duplicated timeseries`.
 
 A debug `conftest.py` with a `pytest_collectstart` hook printing
@@ -64,11 +64,11 @@ one consistent dotted name (`services.api.middleware.rate_limit`) and the
 module loads exactly once.
 
 Also removed the now-redundant `sys.path.insert(0, ...)` hack from
-`test_rate_limit.py` — it was a workaround for the same ambiguity and
+`test_rate_limit.py` - it was a workaround for the same ambiguity and
 became unnecessary once `services` was a proper package.
 
 (Alternative: `--import-mode=importlib` in `pytest.ini` sidesteps
-rootdir-based naming entirely — not used here to keep the fix minimal and
+rootdir-based naming entirely - not used here to keep the fix minimal and
 avoid a config change that affects every test in the repo.)
 
 ## How I found it
@@ -79,11 +79,11 @@ imported `main.py`, which imports `rate_limit.py` via
 `from services.api.middleware.rate_limit import RateLimitMiddleware`.
 Combined with `test_rate_limit.py`'s own relative import resolving the same
 module under a different name, the registry collision surfaced. One fix
-unlocked another bug — classic.
+unlocked another bug - classic.
 
 ## Prevention
 
-- Put `__init__.py` in every package directory — don't rely on implicit
+- Put `__init__.py` in every package directory - don't rely on implicit
   namespace packages when relative imports are in play.
 - If you see `Duplicated timeseries in CollectorRegistry`, suspect the same
   module imported under two different dotted names before suspecting the

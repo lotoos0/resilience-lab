@@ -1,6 +1,6 @@
 # Contributing to Resilience Lab
 
-This is a solo learning project, but it's structured as if it were a real team repo —
+This is a solo learning project, but it's structured as if it were a real team repo - 
 proper CI, code review, runbooks, the works. If you're reading this because you want
 to contribute: welcome, and thanks for taking the time.
 
@@ -29,7 +29,7 @@ be constructive, don't be a jerk.
 
 ## Reporting Issues
 
-Search open issues first — the problem might already be known or in progress.
+Search open issues first - the problem might already be known or in progress.
 
 **Bug reports** should include:
 - What you did, what you expected, what actually happened
@@ -46,7 +46,7 @@ If it fits a milestone, mention which one.
 ### Before you open a PR
 
 1. Branch from `develop`, not `main`
-2. Run `make lint` and `make test-unit` — CI will reject failures
+2. Run `make lint` and `make test-unit` - CI will reject failures
 3. If it's a non-trivial change, open an issue first to define the scope
 4. Update docs if your change affects behavior, deployment, or observability
 
@@ -72,7 +72,7 @@ Open the PR against `develop`. Link the issue with `closes #N` in the descriptio
 ### PR description
 
 Keep it short and honest. What changed, why, how to verify it. If there's a screenshot
-or Grafana graph that shows it working — add it. Evidence from actual runs is always
+or Grafana graph that shows it working - add it. Evidence from actual runs is always
 better than "it should work because the code looks right."
 
 ---
@@ -84,7 +84,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 ```
 type(scope): short description
 
-Optional body — use it when the why isn't obvious from the what.
+Optional body - use it when the why isn't obvious from the what.
 
 Closes #N
 ```
@@ -126,7 +126,7 @@ Light GitFlow: `develop` is the daily working branch, `main` holds tagged releas
 
 | Branch | Purpose |
 |--------|---------|
-| `main` | Stable releases only — tagged, never force-pushed |
+| `main` | Stable releases only - tagged, never force-pushed |
 | `develop` | Active development, integration target for PRs |
 | `issue-<N>-<description>` | Feature or fix branch (preferred naming) |
 | `hotfix/<description>` | Urgent fix directly targeting main |
@@ -143,8 +143,8 @@ PEP 8, enforced by `ruff`. If `make lint` passes, you're good. The main things t
 matter in practice:
 
 - Type hints on all function signatures
-- Meaningful names — `tenant_id` over `tid`, `payment_response` over `resp`
-- No bare `except:` — catch what you expect and let the rest bubble up
+- Meaningful names - `tenant_id` over `tid`, `payment_response` over `resp`
+- No bare `except:` - catch what you expect and let the rest bubble up
 - Don't log sensitive data (card numbers, tokens, passwords)
 
 ```python
@@ -155,7 +155,7 @@ async def get_payment(payment_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Payment {payment_id} not found")
     return payment
 
-# Not great — no error handling, no return type
+# Not great - no error handling, no return type
 async def get_payment(payment_id):
     return repository.get(payment_id)
 ```
@@ -163,7 +163,7 @@ async def get_payment(payment_id):
 ### Docstrings
 
 Short public functions don't need docstrings if the name and types tell the story.
-Longer or tricky functions do — keep them concise, focus on the non-obvious parts.
+Longer or tricky functions do - keep them concise, focus on the non-obvious parts.
 
 ### Comments
 
@@ -182,13 +182,13 @@ the code probably needs to be clearer.
 
 ### Test types
 
-**Unit tests** — no external services required, fast feedback:
+**Unit tests** - no external services required, fast feedback:
 
 ```bash
 make test-unit
 ```
 
-**Integration tests** — require running services (`make dev` first):
+**Integration tests** - require running services (`make dev` first):
 
 ```bash
 make dev
@@ -207,10 +207,10 @@ pytest --cov=services --cov-report=html
 
 PRs must pass all of these before merge:
 
-1. `make lint` — ruff
+1. `make lint` - ruff
 2. `make test-unit`
 3. `make test-integration`
-4. Docker build — images must build cleanly
+4. Docker build - images must build cleanly
 
 ---
 
@@ -244,10 +244,10 @@ git checkout develop && git pull
 
 # 3. Tag on main
 git checkout main && git pull
-git tag -a v0.1.0 -m "Release v0.1.0 — Resilience Lab MVP"
+git tag -a v0.1.0 -m "Release v0.1.0 - Resilience Lab MVP"
 git push origin main --tags
 
-# 4. GitHub Release — attach release notes from RELEASE_NOTES_v0.1.0.md
+# 4. GitHub Release - attach release notes from RELEASE_NOTES_v0.1.0.md
 ```
 
 CI builds and publishes versioned Docker images to GHCR on tag push automatically.

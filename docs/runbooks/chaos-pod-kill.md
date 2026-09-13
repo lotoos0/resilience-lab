@@ -1,6 +1,6 @@
 # Chaos Test: Pod Kill / Partial Outage
 
-**Issue:** [#41 — Run chaos test: pod kill / partial outage](https://github.com/lotoos0/resilience-lab/issues/41)
+**Issue:** [#41 - Run chaos test: pod kill / partial outage](https://github.com/lotoos0/resilience-lab/issues/41)
 **Date:** 2026-06-23
 **Branch:** `issue-41-pod-kill-outage`
 **Namespace:** `resilience-lab`
@@ -33,7 +33,7 @@ NAME                          REFERENCE                            TARGETS      
 resilience-lab-payments-hpa   Deployment/resilience-lab-payments   cpu: <unknown>/70%           1        3        1
 ```
 
-> metrics-server was not available — HPA could not evaluate CPU/memory targets.
+> metrics-server was not available - HPA could not evaluate CPU/memory targets.
 
 ### PDB
 
@@ -42,7 +42,7 @@ NAME                          MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTI
 resilience-lab-payments-pdb   1               N/A               0
 ```
 
-> ALLOWED DISRUPTIONS=0 because only 1 replica was running (equals MIN AVAILABLE). `kubectl delete pod` is a direct pod deletion — it is not subject to PDB eviction checks (only `kubectl drain` and eviction API respect PDB). The test proceeded as expected.
+> ALLOWED DISRUPTIONS=0 because only 1 replica was running (equals MIN AVAILABLE). `kubectl delete pod` is a direct pod deletion - it is not subject to PDB eviction checks (only `kubectl drain` and eviction API respect PDB). The test proceeded as expected.
 
 ---
 
@@ -80,7 +80,7 @@ resilience-lab-payments-7f78b8764-5fksw
 | ~0s             | `Killing`                    | Stopping container `payments` on `5fksw`             |
 | ~1s             | `Scheduled`                  | New pod `btdh7` assigned to node `minikube`          |
 | ~1s             | `SuccessfulCreate`           | ReplicaSet created pod `btdh7`                       |
-| ~2s             | `Pulled`                     | Image already present on node — no pull needed       |
+| ~2s             | `Pulled`                     | Image already present on node - no pull needed       |
 | ~2s             | `Created` / `Started`        | Container created and started                        |
 | ~15s            | Pod `1/1 Running`            | New pod fully ready                                  |
 
@@ -99,7 +99,7 @@ resilience-lab-payments-7f78b8764-btdh7   1/1     Running   0          27s
 
 ### HPA Behavior
 
-HPA did not scale because metrics-server was unavailable. No autoscaling was triggered. HPA held at 1 replica throughout. This is an infrastructure gap (metrics-server) — not a test failure.
+HPA did not scale because metrics-server was unavailable. No autoscaling was triggered. HPA held at 1 replica throughout. This is an infrastructure gap (metrics-server) - not a test failure.
 
 ### PDB Behavior
 
@@ -124,7 +124,7 @@ With only 1 payments host in the cluster, Envoy cannot eject it (max_ejection_pe
 docs/outputs/issue-41-payments-logs.txt
 ```
 
-No crash logs in payments — pod was externally deleted, not a process crash.
+No crash logs in payments - pod was externally deleted, not a process crash.
 
 ---
 
@@ -135,7 +135,7 @@ No crash logs in payments — pod was externally deleted, not a process crash.
 | `kubectl delete pod` executed    | PASS   | Pod `5fksw` deleted via `fault-inject.sh kill`     |
 | Pod rehydration triggered        | PASS   | ReplicaSet created `btdh7` within ~2s              |
 | Pod back to `1/1 Running`        | PASS   | Recovery in ~15s                                   |
-| HPA behavior observed            | PASS   | No scaling — metrics-server unavailable (expected) |
+| HPA behavior observed            | PASS   | No scaling - metrics-server unavailable (expected) |
 | PDB behavior observed            | PASS   | ALLOWED DISRUPTIONS=0; direct delete bypasses PDB  |
 | Logs and events captured         | PASS   | See `docs/outputs/`                                |
 | Runbook drafted                  | PASS   | `docs/runbooks/rollback-vs-recover.md`             |

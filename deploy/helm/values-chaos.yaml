@@ -1,9 +1,9 @@
-# Chaos mode overrides — ONLY for active resilience experiments.
+# Chaos mode overrides - ONLY for active resilience experiments.
 # Never apply in CI, staging, or production.
 #
 # Stage 1 (this file as-is): NET_ADMIN added, runAsUser remains 1000.
 #   Run ./scripts/fault-inject.sh latency and check for capability errors.
-#   If tc qdisc show dev eth0 returns "netem delay 300ms" — Stage 1 succeeded.
+#   If tc qdisc show dev eth0 returns "netem delay 300ms" - Stage 1 succeeded.
 #
 # Stage 2 (only if tc fails with "Operation not permitted"): also set:
 #   payments.chaosMode.runAsRoot: true

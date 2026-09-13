@@ -54,7 +54,7 @@ kubectl get deployment <name> -n resilience-lab \
   -o jsonpath='{.metadata.managedFields[*].manager}' | tr ' ' '\n'
 ```
 
-If you see `kubectl-set`, `before-first-apply`, or anything other than `helm` — problem confirmed.
+If you see `kubectl-set`, `before-first-apply`, or anything other than `helm` - problem confirmed.
 
 ## Resolution Steps
 
@@ -106,12 +106,12 @@ kubectl get pods -n resilience-lab
 
 - Never use `kubectl set image`, `kubectl apply`, or `kubectl scale` on resources managed by Helm
 - Image changes: always via `values.yaml` + `helm upgrade`
-- Scaling: via `values.yaml` (replicaCount) or let HPA manage replicas — but then do not set `replicaCount` in values
+- Scaling: via `values.yaml` (replicaCount) or let HPA manage replicas - but then do not set `replicaCount` in values
 
 ## Common Pitfalls / Gotchas
 
-- `--force` is **deprecated** in newer Helm and **does not work** with SSA — produces `cannot use server-side apply and force replace together`
-- Clearing `managedFields` via `kubectl patch` and removing the `last-applied-configuration` annotation is **not enough** — `before-first-apply` persists
+- `--force` is **deprecated** in newer Helm and **does not work** with SSA - produces `cannot use server-side apply and force replace together`
+- Clearing `managedFields` via `kubectl patch` and removing the `last-applied-configuration` annotation is **not enough** - `before-first-apply` persists
 - `--force-conflicts` is the only reliable fix
 
 ## Change History

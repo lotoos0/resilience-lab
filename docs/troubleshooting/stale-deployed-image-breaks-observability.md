@@ -10,7 +10,7 @@
 
 While verifying that the rate-limit middleware emits structured
 `rate_limit_check tenant=... path=... status=...` log lines, a Loki query
-returned zero results — even after driving real traffic and real 429s through
+returned zero results - even after driving real traffic and real 429s through
 the middleware with k6.
 
 Pods looked completely healthy: `Running`, `/healthz` → 200,
@@ -39,7 +39,7 @@ kubectl logs -n resilience-lab -l app.kubernetes.io/name=api --since=20m \
 ## Why it happened
 
 The cluster was running image `ghcr.io/lotoos0/resilience-lab-api:8b86f3d`
-— built 2026-01-07, 5 months behind `develop`.
+ - built 2026-01-07, 5 months behind `develop`.
 
 That image predates commit `1e2d70a`
 (`feat(logging): add tenant context to API log lines`, merged 2026-06-07),
@@ -89,16 +89,16 @@ INFO:services.api.middleware.rate_limit:rate_limit_check tenant=verify29-v2 path
 INFO:services.api.middleware.rate_limit:rate_limit_check tenant=verify29-v2 path=/openapi.json status=denied count=98 limit=60
 ```
 
-`values-dev.yaml` was deliberately not updated — bumping the dev baseline
+`values-dev.yaml` was deliberately not updated - bumping the dev baseline
 image tag is a separate release-hygiene decision, not part of verifying #29.
 This rebuild was a one-off, local-only step.
 
 ## How I found it
 
 Metrics and k6 agreed perfectly on `allowed`/`denied` counts, but Loki
-showed nothing for the same time window and tenant. That asymmetry —
+showed nothing for the same time window and tenant. That asymmetry - 
 one observability signal present, the related one completely silent, with
-zero errors in between — was the tell.
+zero errors in between - was the tell.
 
 Comparing the running pod's image tag against `git log` for the relevant
 source files closed the case:
@@ -112,14 +112,14 @@ Image was a 5-month-old build that didn't contain the logging fix.
 ## Prevention
 
 - When verifying an observability feature against a live cluster, confirm
-  the deployed image actually contains the code under test — "pods are
+  the deployed image actually contains the code under test - "pods are
   Running" does not mean "pods are running current code":
   ```bash
   kubectl get pod <pod> -n <ns> -o jsonpath='{.spec.containers[0].image}'
   git merge-base --is-ancestor <commit-that-added-the-feature> <image-tag>
   ```
 - "One observability signal present, the related one silent, no errors" is
-  a strong hint you're not running the code you think you're running — not
+  a strong hint you're not running the code you think you're running - not
   a feature bug.
 - Consider a deploy-time check that warns when a `values*.yaml` image tag
   is significantly behind `develop`/`main` for the files it deploys.

@@ -113,11 +113,11 @@ Long-term solution to prevent the problem in the future:
 
 ## Additional Resources
 
-- [Architecture Overview](../docs/ARCHITECTURE.md)
-- [Network Policies](../deploy/helm/templates/netpol-allow-essentials.yaml)
-- [Prometheus Rules](../deploy/prometheus/rules.yaml)
-- [Prometheus ServiceMonitor – API](../deploy/prometheus/servicemonitor-api.yaml)
-- [Observability Overview](../docs/observability.md)
+- [Architecture Overview](../ARCHITECTURE.md)
+- [Network Policies](../../deploy/helm/templates/netpol-allow-essentials.yaml)
+- [Prometheus Rules](../../deploy/prometheus/rules.yaml)
+- [Prometheus ServiceMonitor - API](../../deploy/prometheus/servicemonitor-api.yaml)
+- [Observability Overview](../observability.md)
 
 ## Change History
 

@@ -1,25 +1,16 @@
 # 💻 Development Guide
 
-**Resilience Lab — Developer Documentation**
+**Resilience Lab - Developer Documentation**
 
 *Last updated: June 25, 2026*
 
 ---
 
 > **Author's note:** This guide covers local development from zero to running tests.
-> The project has two FastAPI services, four infrastructure containers, a full
-> Kubernetes/Helm deployment path, and chaos-engineering scripts. If you just
-> want to run tests quickly — jump straight to [Getting Started](#getting-started).
-
-> **What this guide adds (vs. the November 2025 version):**
-> The original doc had 8 sections, 3 development paths, and 0 mentions of Kubernetes.
-> This version has **12 sections** and covers **3 dev paths** (venv / full deps / Docker-only),
-> **24 documented `make` targets**, a full **Kubernetes & Helm** section that was
-> completely missing, **k6 load tests** in `tests/load/`, a corrected branch strategy
-> (`develop` → `main` flow, not flat), and removed two stale placeholders
-> (`test_payments.py (future)` and the stale M1 Alembic migration block).
-> Written because the project grew from a two-service Docker Compose demo into a
-> full resilience platform with Envoy, Traefik, Prometheus, and Loki — and the doc hadn't kept up.
+> The project started as a two-service Docker Compose demo and grew a Helm/Envoy/
+> Prometheus/Loki path on top, so this covers both plus the venv / full-deps /
+> Docker-only ways to run tests locally. If you just want to run tests quickly - 
+> jump straight to [Getting Started](#getting-started).
 
 ---
 
@@ -47,7 +38,7 @@
 ```bash
 # Required
 docker --version        # Docker 24+
-docker compose version  # v2+ (the space matters — old "docker-compose" works too)
+docker compose version  # v2+ (the space matters - old "docker-compose" works too)
 python --version        # Python 3.11+
 make --version          # GNU Make
 
@@ -57,7 +48,7 @@ helm version            # 3.12+
 minikube version        # 1.32+ (or any local k8s cluster)
 
 # Nice to have
-k9s version             # Kubernetes TUI — genuinely makes your life easier
+k9s version             # Kubernetes TUI - genuinely makes your life easier
 git --version           # Git 2.40+
 ```
 
@@ -68,7 +59,7 @@ git --version           # Git 2.40+
    git clone https://github.com/lotoos0/resilience-lab.git && cd resilience-lab
    ```
 
-2. **Install development dependencies** (lightweight — no PostgreSQL headers needed):
+2. **Install development dependencies** (lightweight - no PostgreSQL headers needed):
    ```bash
    make install
    ```
@@ -92,7 +83,7 @@ That's 4 steps. If step 3 fails, check that Docker daemon is actually running (y
 ### Option 1: Virtual Environment (Recommended for fast iteration)
 
 ```bash
-make install            # Creates venv + installs requirements-dev.txt (~10 packages)
+make install            # Creates venv + installs requirements-dev.txt
 source venv/bin/activate
 make dev                # Starts 4 Docker containers: api, payments, postgres, redis
 ```
@@ -101,18 +92,18 @@ make dev                # Starts 4 Docker containers: api, payments, postgres, r
 pytest runs natively. IDE type checking, linting, and autocomplete also work out of the box.
 
 **Limitation:** Requires local Python 3.11+. The dev dependencies (`requirements-dev.txt`)
-are intentionally kept lightweight — no PostgreSQL headers, no Redis C libs.
+are intentionally kept lightweight - no PostgreSQL headers, no Redis C libs.
 
 ### Option 2: Full Dependencies (for integration testing locally)
 
 ```bash
-make install-full       # Installs requirements.txt — needs postgresql-libs on the system
+make install-full       # Installs requirements.txt - needs postgresql-libs on the system
 make dev
 make test-all
 ```
 
 Use this when you need to run integration tests against real Postgres/Redis locally
-(outside Docker). Normally you won't need it — `make test` skips integration tests.
+(outside Docker). Normally you won't need it - `make test` skips integration tests.
 
 ### Option 3: Docker-Only (no local Python)
 
@@ -131,9 +122,9 @@ Good for CI-parity checks.
   - For VS Code: Python + Docker + YAML extensions
 
 **Kubernetes**
-- `k9s` — curses TUI for Kubernetes, makes pod logs/exec/delete actually pleasant
-- `kubectl` — mandatory
-- `helm` — mandatory for the deployment path
+- `k9s` - curses TUI for Kubernetes, makes pod logs/exec/delete actually pleasant
+- `kubectl` - mandatory
+- `helm` - mandatory for the deployment path
 
 **Database**
 - `pgAdmin` or `DBeaver` for PostgreSQL
@@ -159,7 +150,7 @@ git checkout -b feature/your-feature
 
 # 3. Dev loop
 # Edit code...
-make test               # Fast — unit tests only, ~seconds
+make test               # Fast - unit tests only, ~seconds
 make lint               # ruff check (fast, strict)
 
 # 4. Before pushing
@@ -176,8 +167,8 @@ git push origin feature/your-feature
 ### Branch Strategy
 
 ```
-main     (production — tagged releases only)
-  └── develop  (integration — where feature branches are merged)
+main     (production - tagged releases only)
+  └── develop  (integration - where feature branches are merged)
         ├── feature/feature-name
         ├── fix/bug-description
         ├── chore/maintenance-task
@@ -202,8 +193,8 @@ PRs require at least one passing CI run before merge.
 
 ### Python Style
 
-PEP 8, enforced by `ruff`. Chose ruff because it's 10–100x faster than flake8
-and covers formatting on top of linting — one tool instead of three.
+PEP 8, enforced by `ruff`. Chose ruff because it's 10-100x faster than flake8
+and covers formatting on top of linting - one tool instead of three.
 
 ```python
 # Good
@@ -256,14 +247,14 @@ class PaymentRequest(BaseModel):
     }
 ```
 
-Note: the old `class Config:` syntax is Pydantic v1 — use `model_config` dict.
+Note: the old `class Config:` syntax is Pydantic v1 - use `model_config` dict.
 
 ### Error Handling
 
 ```python
 from fastapi import HTTPException, status
 
-# Good ✅ — explicit status codes, meaningful messages
+# Good ✅ - explicit status codes, meaningful messages
 async def get_payment(payment_id: str):
     payment = await repository.get(payment_id)
     if not payment:
@@ -273,7 +264,7 @@ async def get_payment(payment_id: str):
         )
     return payment
 
-# Bad ❌ — let the caller discover the failure themselves
+# Bad ❌ - let the caller discover the failure themselves
 async def get_payment(payment_id: str):
     return repository.get(payment_id)
 ```
@@ -305,20 +296,20 @@ logger.info(f"Credit card: {card_number}")              # ❌ NEVER
 
 ```
 tests/
-├── test_sanity.py       # Basic smoke checks — imports, health endpoints
+├── test_sanity.py       # Basic smoke checks - imports, health endpoints
 ├── test_integration.py  # End-to-end flows (@pytest.mark.integration)
 └── load/
-    ├── rate-limit-test.js         # k6 load test — full rate-limit scenario
-    └── rate-limit-test-simple.js  # k6 load test — simplified version
+    ├── rate-limit-test.js         # k6 load test - full rate-limit scenario
+    └── rate-limit-test-simple.js  # k6 load test - simplified version
 ```
 
-Coverage target: **80% minimum**, 90% in practice. Below 80% is just carelessness —
+Coverage target: **80% minimum**, 90% in practice. Below 80% is just carelessness - 
 above 90% on a project this size is usually over-engineered mocking.
 
 ### Test Commands
 
 ```bash
-make test               # Unit tests only (no services needed) — default, use this most
+make test               # Unit tests only (no services needed) - default, use this most
 make test-unit          # Same as above
 make test-all           # All tests including integration (requires: make dev first)
 make test-integration   # Integration tests only (requires: make dev first)
@@ -347,7 +338,7 @@ def test_payment_request_validation():
 
 ### Writing Integration Tests
 
-Mark them explicitly — CI skips them unless services are confirmed up:
+Mark them explicitly - CI skips them unless services are confirmed up:
 
 ```python
 import pytest, requests
@@ -368,7 +359,7 @@ def test_payment_flow():
 
 ### Load Tests (k6)
 
-Load tests live in `tests/load/` and target the rate-limiter (Redis-backed, 10 req/min
+Load tests live in `tests/load/` and target the rate-limiter (Redis-backed, 60 req/min
 per tenant by default). Requires k6 installed locally:
 
 ```bash
@@ -393,7 +384,7 @@ minikube start --driver=docker   # or whatever driver you prefer
 
 ```bash
 make helm-deps      # Build Helm chart dependencies (subcharts)
-make helm-lint      # Lint the chart — do this before helm-up-dev
+make helm-lint      # Lint the chart - do this before helm-up-dev
 
 make helm-up-dev    # Install/upgrade into resilience-lab namespace (values-dev.yaml)
 make helm-test      # Run Helm test hooks (smoke tests inside the cluster)
@@ -404,18 +395,23 @@ make rollback-1     # Roll back to revision 1 (replace 1 with target revision)
 
 ### Stack Overview
 
-After `make helm-up-dev`, the cluster has:
+`make helm-up-dev` only deploys `api`, `payments`, and `redis` (plus HPAs, PDBs,
+NetworkPolicies, and the Grafana dashboard ConfigMaps). Everything else on the full
+resilience-testing stack is applied separately:
 
-| Component | Purpose |
-|-----------|---------|
-| `api` | FastAPI gateway, port 8000 |
-| `payments` | FastAPI payments service, port 8001 |
-| `postgres` | Primary data store |
-| `redis` | Rate-limiter backend |
-| `envoy` | Front-proxy with retry/timeout/circuit-breaker policies |
-| `traefik` | Ingress controller |
-| `prometheus` | Metrics scraping |
-| `loki` | Log aggregation |
+| Component | Purpose | How it gets there |
+|-----------|---------|--------------------|
+| `api` | FastAPI gateway, port 8000 | Helm chart |
+| `payments` | FastAPI payments service, port 8001 | Helm chart |
+| `redis` | Rate-limiter backend | Helm chart |
+| `envoy` | Front-proxy with retry/timeout/circuit-breaker policies | `kubectl apply -f deploy/envoy/` |
+| `traefik` | Ingress controller | `deploy/traefik/ingressroute.yaml` (+ Traefik CRDs/controller) |
+| `prometheus` | Metrics scraping | kube-prometheus-stack, separately |
+| `loki` | Log aggregation | `grafana/loki-stack`, separately |
+
+There's no `postgres` here - the Helm chart has a `postgresql:` values block but no
+actual chart dependency wired up, so nothing gets deployed from it. See
+[ARCHITECTURE.md](./ARCHITECTURE.md#adr-004-in-memory-storage-in-v010) for why.
 
 The `deploy/` directory structure:
 
@@ -539,7 +535,7 @@ See `docs/runbooks/` for scenario-specific runbooks.
        ...
    ```
 
-3. **Add tests** — unit first, integration if it hits DB/Redis
+3. **Add tests** - unit first, integration if it hits DB/Redis
 
 4. **Docs are automatic** via FastAPI's OpenAPI generation
 
@@ -578,7 +574,7 @@ kill -9 <PID>          # Evict it
 make clean             # Down + prune (safe)
 make build && make dev # Rebuild and restart
 
-# Nuclear option — removes ALL Docker data on the machine, not just this project
+# Nuclear option - removes ALL Docker data on the machine, not just this project
 docker system prune -a --volumes
 ```
 
@@ -641,7 +637,7 @@ async def get_payment(payment_id: str):
 
 ```python
 logger.info(f"Processing payment for user {user_id}")  # OK
-logger.info(f"Credit card: {card_number}")             # ❌ NEVER — logs are indexed
+logger.info(f"Credit card: {card_number}")             # ❌ NEVER - logs are indexed
 ```
 
 - Validate all external inputs with Pydantic models
@@ -652,7 +648,7 @@ logger.info(f"Credit card: {card_number}")             # ❌ NEVER — logs are 
 
 ## Getting Help
 
-- **Docs**: `docs/` directory — start with `ARCHITECTURE.md`
+- **Docs**: `docs/` directory - start with `ARCHITECTURE.md`
 - **Issues**: [GitHub Issues](https://github.com/lotoos0/resilience-lab/issues)
 - **API Docs**: `http://localhost:8000/docs` and `http://localhost:8001/docs` (when running)
 
@@ -660,7 +656,7 @@ logger.info(f"Credit card: {card_number}")             # ❌ NEVER — logs are 
 
 ## Next Steps
 
-1. Read [ARCHITECTURE.md](./ARCHITECTURE.md) — system design and component relationships
-2. Read [DEPLOYMENT.md](./DEPLOYMENT.md) — full Kubernetes deployment walkthrough
-3. Read [observability.md](./observability.md) — Prometheus + Grafana + Loki setup
-4. Contribute — see [CONTRIBUTING.md](../CONTRIBUTING.md)
+1. Read [ARCHITECTURE.md](./ARCHITECTURE.md) - system design and component relationships
+2. Read [DEPLOYMENT.md](./DEPLOYMENT.md) - full Kubernetes deployment walkthrough
+3. Read [observability.md](./observability.md) - Prometheus + Grafana + Loki setup
+4. Contribute - see [CONTRIBUTING.md](../CONTRIBUTING.md)

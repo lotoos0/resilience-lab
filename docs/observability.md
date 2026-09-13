@@ -32,7 +32,7 @@ What's wired up and working in v0.1.0:
 - Payments `/metrics` endpoint (same instrumentator, same setup)
 - Envoy `/stats/prometheus` on the admin port
 - Prometheus `ServiceMonitor` for API, Payments, and Envoy
-- 14 recording rules — Envoy, API, rate-limit, and pod availability metrics
+- 14 recording rules - Envoy, API, rate-limit, and pod availability metrics
 - 3 alert rules: `HighErrorRate`, `APIDown`, `PrometheusTargetDown`
 - 2 Grafana dashboards: System Overview and Traffic & Latency
 - Loki + Promtail log aggregation, browsable through Grafana when a Loki datasource
@@ -93,7 +93,7 @@ Same instrumentator setup as API:
 GET /metrics
 ```
 
-Exposes standard FastAPI HTTP metrics. No rate-limit counters — those live in the
+Exposes standard FastAPI HTTP metrics. No rate-limit counters - those live in the
 API middleware only.
 
 ### Envoy
@@ -116,7 +116,7 @@ Grafana **Explore**.
 
 **Deployment:**
 
-- Helm release `loki` (chart `grafana/loki-stack`) in the `monitoring` namespace —
+- Helm release `loki` (chart `grafana/loki-stack`) in the `monitoring` namespace - 
   bundles Loki and Promtail in a single release.
 - Values: `deploy/loki/values.yaml` (~7 day retention, sized for a single-node
   minikube lab).
@@ -143,9 +143,9 @@ kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail
 
 Promtail derives labels from pod metadata. Services are queryable via the `app` label:
 
-- `{app="api"}` — Resilience Lab API
-- `{app="payments"}` — Payments service
-- `{app="envoy-proxy"}` — Envoy proxy
+- `{app="api"}` - Resilience Lab API
+- `{app="payments"}` - Payments service
+- `{app="envoy-proxy"}` - Envoy proxy
 
 Other useful labels: `namespace`, `pod`, `container`, `node_name`, `job`
 (`<namespace>/<app>`).
@@ -173,7 +173,7 @@ Parsing JSON container log lines:
 {namespace="resilience-lab"} | json | line_format "{{.log}}"
 ```
 
-Tenant/rate-limit context — the rate-limit middleware logs a `logfmt`-style line per
+Tenant/rate-limit context - the rate-limit middleware logs a `logfmt`-style line per
 request: `rate_limit_check tenant=<t> path=<p> status=<allowed|denied> count=<n> limit=<n>`:
 
 ```logql
@@ -183,7 +183,7 @@ request: `rate_limit_check tenant=<t> path=<p> status=<allowed|denied> count=<n>
 
 > Container log lines arrive wrapped in the runtime's JSON envelope
 > (`{"log": "...", "stream": "...", "time": "..."}`), so `| logfmt` alone won't see
-> the `tenant=`/`status=` fields — unwrap with `| json | line_format "{{.log}}"` first.
+> the `tenant=`/`status=` fields - unwrap with `| json | line_format "{{.log}}"` first.
 
 ### Verification
 
@@ -195,7 +195,7 @@ Use the label browser to confirm `app`, `namespace`, and `container` values matc
 ## Grafana Dashboards
 
 Both dashboards are provisioned as code via labeled ConfigMaps picked up by the
-`grafana-sc-dashboard` sidecar — no manual import needed.
+`grafana-sc-dashboard` sidecar - no manual import needed.
 
 ### Resilience Lab 0 System Overview (`uid: adnxcgd`)
 
@@ -203,9 +203,9 @@ Both dashboards are provisioned as code via labeled ConfigMaps picked up by the
 - Template: `deploy/helm/templates/grafana-dashboard-system-overview.yaml`
 - URL: `/d/adnxcgd/resilience-lab-0-system-overview`
 
-![Resilience Lab – System Overview dashboard](img/grafana-dashboard-overview.png)
+![Resilience Lab - System Overview dashboard](img/grafana-dashboard-overview.png)
 
-### Resilience Lab – Traffic & Latency (`uid: resilience-core`)
+### Resilience Lab - Traffic & Latency (`uid: resilience-core`)
 
 - JSON: `deploy/helm/dashboards/resilience.json`
 - Template: `deploy/helm/templates/grafana-dashboard-resilience.yaml`
@@ -215,7 +215,7 @@ Panels: HTTP Status Codes, RPS (1m), p95 Latency, Envoy Retries rate 5m, Outlier
 Ejections rate 5m, Rate Limit Denials/429 rate 5m (by tenant), Envoy Bulkhead
 Overflow rate 5m. All rate/ejection panels read from recording rules, not raw counters.
 
-![Resilience Lab – Traffic & Latency dashboard](img/resilience-dashboard.png)
+![Resilience Lab - Traffic & Latency dashboard](img/resilience-dashboard.png)
 
 **Verification:**
 
@@ -253,32 +253,32 @@ kubectl describe prometheusrule resilience-lab-rules -n monitoring
 
 **Envoy (7 rules):**
 
-- `envoy:http_requests:rate5m` — request rate
-- `envoy:http_errors_5xx:rate5m` — 5xx error rate
-- `envoy:http_request_duration:p95` — p95 upstream latency
-- `envoy:upstream_connections:current` — active upstream connections
-- `envoy:retries:rate5m` — retry rate
-- `envoy:outlier_ejections:rate5m` — outlier ejection rate
-- `envoy:bulkhead_overflow:rate5m` — bulkhead overflow rate
+- `envoy:http_requests:rate5m` - request rate
+- `envoy:http_errors_5xx:rate5m` - 5xx error rate
+- `envoy:http_request_duration:p95` - p95 upstream latency
+- `envoy:upstream_connections:current` - active upstream connections
+- `envoy:retries:rate5m` - retry rate
+- `envoy:outlier_ejections:rate5m` - outlier ejection rate
+- `envoy:bulkhead_overflow:rate5m` - bulkhead overflow rate
 
 **API (4 rules):**
 
-- `api:http_requests:rate5m` — request rate
-- `api:http_errors:rate5m` — error rate
-- `api:rate_limit_denied:rate5m` — rate-limit denials by tenant
-- `api:rate_limit_allowed:rate5m` — rate-limit passes by tenant
+- `api:http_requests:rate5m` - request rate
+- `api:http_errors:rate5m` - error rate
+- `api:rate_limit_denied:rate5m` - rate-limit denials by tenant
+- `api:rate_limit_allowed:rate5m` - rate-limit passes by tenant
 
 **Availability (3 rules):**
 
-- `resilience_lab:pod_available:count` — available pod count
-- `resilience_lab:pod_total:count` — total pod count
-- `resilience_lab:availability:ratio` — availability ratio (available/total)
+- `resilience_lab:pod_available:count` - available pod count
+- `resilience_lab:pod_total:count` - total pod count
+- `resilience_lab:availability:ratio` - availability ratio (available/total)
 
 ---
 
 ## Alert Rules
 
-The v0.1.0 alert baseline is intentionally small — three rules that cover the most
+The v0.1.0 alert baseline is intentionally small - three rules that cover the most
 actionable lab failures.
 
 ### HighErrorRate
@@ -296,7 +296,7 @@ selectors and NetworkPolicy first.
 ### PrometheusTargetDown
 
 Fires when any target in the `resilience-lab` namespace is unreachable for more than
-2 minutes, or when no target is discovered at all. Broader than `APIDown` — covers
+2 minutes, or when no target is discovered at all. Broader than `APIDown` - covers
 Envoy, Payments, and any future monitored service in the namespace.
 
 ---
@@ -311,8 +311,8 @@ Run this after deploying or upgrading the stack.
 kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
 ```
 
-Open `http://localhost:9090/targets` — API, Payments, and Envoy targets should be `UP`.
-Open `http://localhost:9090/alerts` — rules visible, none `FIRING` in a healthy cluster.
+Open `http://localhost:9090/targets` - API, Payments, and Envoy targets should be `UP`.
+Open `http://localhost:9090/alerts` - rules visible, none `FIRING` in a healthy cluster.
 
 If `resilience-lab` targets are missing:
 
@@ -364,16 +364,16 @@ Full runbooks: [`chaos-pod-kill.md`](runbooks/chaos-pod-kill.md),
 [`chaos-latency-injection.md`](runbooks/chaos-latency-injection.md),
 [`rollback-vs-recover.md`](runbooks/rollback-vs-recover.md).
 
-### Pod Kill — Recovery Monitoring
+### Pod Kill - Recovery Monitoring
 
 ```promql
-# Available replicas — drops to 0 on kill, recovers in ~15s
+# Available replicas - drops to 0 on kill, recovers in ~15s
 kube_deployment_status_replicas_available{deployment="resilience-lab-payments"}
 
-# Pod restart counter — increments after each kill
+# Pod restart counter - increments after each kill
 kube_pod_container_status_restarts_total{namespace="resilience-lab", container="payments"}
 
-# Envoy outlier ejections — should stay 0 during fast pod recovery
+# Envoy outlier ejections - should stay 0 during fast pod recovery
 envoy:outlier_ejections:rate5m
 ```
 
@@ -385,16 +385,16 @@ ALERTS{alertname=~"HighErrorRate|APIDown|PrometheusTargetDown", alertstate="firi
 
 Expected result: `no data` (empty vector).
 
-### Latency Injection — Monitoring 300ms netem Delay
+### Latency Injection - Monitoring 300ms netem Delay
 
 ```promql
-# Envoy p95 upstream latency — rises to ~300ms+ during injection
+# Envoy p95 upstream latency - rises to ~300ms+ during injection
 envoy:http_request_duration:p95
 
-# API error rate — should stay low (Envoy retries absorb slow responses)
+# API error rate - should stay low (Envoy retries absorb slow responses)
 api:http_errors:rate5m
 
-# Envoy retry rate — rises when upstream latency triggers timeout retries
+# Envoy retry rate - rises when upstream latency triggers timeout retries
 envoy:retries:rate5m
 ```
 
@@ -406,7 +406,7 @@ LogQL to correlate payments logs during injection:
 
 ### Grafana Panels to Watch
 
-Open **"Resilience Lab – Traffic & Latency"** during any chaos experiment:
+Open **"Resilience Lab - Traffic & Latency"** during any chaos experiment:
 
 | Panel             | Expected behaviour during chaos                                   |
 | ----------------- | ----------------------------------------------------------------- |
@@ -417,16 +417,16 @@ Open **"Resilience Lab – Traffic & Latency"** during any chaos experiment:
 
 ### Evidence Screenshots
 
-Pod kill — dip in HTTP Status Codes and RPS at ~13:47, auto-recovery within ~15s,
+Pod kill - dip in HTTP Status Codes and RPS at ~13:47, auto-recovery within ~15s,
 no 5xx errors, Retries and Outlier Ejections remain at 0:
 
-![Chaos pod kill — Traffic & Latency dashboard](img/chaos-pod-kill-grafana.png)
+![Chaos pod kill - Traffic & Latency dashboard](img/chaos-pod-kill-grafana.png)
 
-Latency injection (300ms netem) — RPS and 2xx throughput drop at ~14:00; p95 panel
+Latency injection (300ms netem) - RPS and 2xx throughput drop at ~14:00; p95 panel
 did not capture the full spike because the `rate5m` recording rule window outlasted
 the injection duration:
 
-![Chaos latency injection — Traffic & Latency dashboard](img/chaos-latency-grafana.png)
+![Chaos latency injection - Traffic & Latency dashboard](img/chaos-latency-grafana.png)
 
 ---
 

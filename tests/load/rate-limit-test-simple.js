@@ -7,7 +7,7 @@
  * validation targets `/openapi.json` because `/healthz` and `/metrics` are
  * excluded from rate limiting (see RateLimitMiddleware.excluded_paths) and
  * would never produce a 429 no matter the load. (The `/` root endpoint is
- * avoided too — it currently returns 500 due to an unrelated
+ * avoided too - it currently returns 500 due to an unrelated
  * ResponseValidationError bug.)
  */
 

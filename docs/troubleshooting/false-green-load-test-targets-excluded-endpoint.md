@@ -10,7 +10,7 @@
 ## What happened
 
 `tests/load/rate-limit-test-simple.js` is supposed to prove the rate-limit
-middleware returns HTTP 429 under sustained load — acceptance criterion for
+middleware returns HTTP 429 under sustained load - acceptance criterion for
 issue #29. It always ran clean:
 
 ```
@@ -21,14 +21,14 @@ rate_limit_429_count...........: 0
 ```
 
 Beautiful dashboard. Zero signal. The test was green because it politely
-walked around the feature it was supposed to validate — a tiny applause
+walked around the feature it was supposed to validate - a tiny applause
 machine for a code path that never ran.
 
 ## Symptoms
 
 - Every run, regardless of request rate (50 req/min or 100 req/min),
   produced the same outcome: all 200s, zero 429s.
-- No errors, no warnings — textbook false green.
+- No errors, no warnings - textbook false green.
 - `rate_limit_429_count` permanently stuck at 0.
 
 ## Why it happened
@@ -57,12 +57,12 @@ incrementing `rl_allowed_total`/`rl_denied_total`, or emitting a
 impossible.
 
 The original script's own docstring said "Uses /healthz endpoint to avoid
-Payments service dependency" — a deliberate choice to dodge one problem that
+Payments service dependency" - a deliberate choice to dodge one problem that
 accidentally created a much bigger one.
 
 ## Fix
 
-Pointed the test at `GET /openapi.json` — FastAPI's auto-generated OpenAPI
+Pointed the test at `GET /openapi.json` - FastAPI's auto-generated OpenAPI
 schema route:
 
 - not in `excluded_paths`, so it goes through the full middleware path
@@ -72,7 +72,7 @@ schema route:
 
 `GET /` was the obvious first candidate, but it currently returns 500 due
 to an unrelated `ResponseValidationError` bug (issue #63), so `/openapi.json`
-won. Setup still checks `GET /healthz` before the test starts — readiness
+won. Setup still checks `GET /healthz` before the test starts - readiness
 checks are still its job.
 
 After the fix, the same test produced real results:
@@ -85,7 +85,7 @@ successful_requests............: 111
 ```
 
 40 HTTP 429s in the over-limit phase, 111 successful requests in the
-under-limit phase. Not "all red" — meaningful signal.
+under-limit phase. Not "all red" - meaningful signal.
 
 ## How I found it
 
@@ -102,9 +102,9 @@ produced a single 429 in any prior run.
   target is an easy way to write a test that always passes and never tests
   anything.
 - A 100%-green load test is not proof the feature was exercised. Assert on
-  the positive signal — make `rate_limit_429_count > 0` a hard threshold,
+  the positive signal - make `rate_limit_429_count > 0` a hard threshold,
   not just a soft `check`, so the test fails loudly if the targeted code
   path is never hit.
 - Document why a specific endpoint was chosen as the load-test target
-  directly in the test file. One comment is enough — it's the first thing
+  directly in the test file. One comment is enough - it's the first thing
   the next person needs when the target changes or breaks.

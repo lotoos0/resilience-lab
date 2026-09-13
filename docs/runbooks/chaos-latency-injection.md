@@ -1,4 +1,4 @@
-# Runbook: Chaos Test — Latency Injection (300ms, Payments)
+# Runbook: Chaos Test - Latency Injection (300ms, Payments)
 
 **Status:** Active
 **Owner:** resilience-lab-team
@@ -15,7 +15,7 @@ The delay is applied via `scripts/fault-inject.sh latency`, which runs
 
 The original expectation was that 300ms would be below Envoy's per-try timeout,
 leaving plenty of headroom. In practice, `per_try_timeout` is `0.2s`
-(`deploy/envoy/envoy-config.yaml:70`) — 300ms exceeds it, so delayed connections
+(`deploy/envoy/envoy-config.yaml:70`) - 300ms exceeds it, so delayed connections
 time out immediately and exhaust retries. See the Finding section for actual outcomes.
 
 ## Impact / Blast Radius
@@ -23,13 +23,13 @@ time out immediately and exhaust retries. See the Finding section for actual out
 - Components affected: Payments pods (network namespace only)
 - API, Envoy, Redis, Prometheus, Grafana: unaffected
 - End-user impact: elevated response latency (~300ms added), no errors expected
-- Observability impact: none — all scrape targets remain up
+- Observability impact: none - all scrape targets remain up
 
 ## Prerequisites
 
 - [ ] Payments image rebuilt with `iproute2` (see Pre-flight section)
 - [ ] Chaos mode deployed via `values-chaos.yaml` (see Pre-flight section)
-- [ ] `kubectl rollout status deployment/resilience-lab-payments -n resilience-lab` — all pods Ready
+- [ ] `kubectl rollout status deployment/resilience-lab-payments -n resilience-lab` - all pods Ready
 - [ ] Port-forwards active: Prometheus :9090, Grafana :3000, Envoy :8080 (listener), Envoy admin :9901
 - [ ] No alerts firing before injection:
   `ALERTS{alertname=~"HighErrorRate|APIDown|PrometheusTargetDown",alertstate="firing"}` returns `[]`
@@ -41,7 +41,7 @@ This experiment requires a temporary security relaxation of the Payments deploym
 | Setting | Default (secure) | Chaos Stage 1 | Chaos Stage 2 (if needed) |
 |---------|-----------------|---------------|--------------------------|
 | `capabilities.drop` | ALL | ALL | ALL |
-| `capabilities.add` | — | NET_ADMIN | NET_ADMIN |
+| `capabilities.add` | - | NET_ADMIN | NET_ADMIN |
 | `runAsUser` | 1000 | 1000 | 0 |
 | `runAsNonRoot` | true | true | false |
 | `readOnlyRootFilesystem` | true | true | true |
@@ -130,7 +130,7 @@ kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 
 ## Experiment Steps
 
-### Step 1 — Activate port-forwards
+### Step 1 - Activate port-forwards
 
 ```bash
 kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090 &
@@ -148,7 +148,7 @@ curl -s http://localhost:8080/healthz
 # Expected: {"status":"ok"} or similar 200 response
 ```
 
-### Step 2 — Record baseline metrics
+### Step 2 - Record baseline metrics
 
 Run each query and save the returned `value[1]` field:
 
@@ -182,7 +182,7 @@ curl -s http://localhost:9901/stats \
 cat /tmp/baseline-envoy-stats.txt
 ```
 
-### Step 3 — Start background traffic
+### Step 3 - Start background traffic
 
 ```bash
 for i in $(seq 1 120); do
@@ -197,7 +197,7 @@ done &
 
 Wait for at least 10 successful requests (2xx) before injecting.
 
-### Step 4 — Inject latency
+### Step 4 - Inject latency
 
 ```bash
 ./scripts/fault-inject.sh latency
@@ -211,13 +211,13 @@ Wait for at least 10 successful requests (2xx) before injecting.
    kubectl exec -n resilience-lab <pod> -- tc qdisc show dev eth0
 ```
 
-If output contains `ERROR: 'tc' not found` — the image was not rebuilt; see Pre-flight Step 1.
+If output contains `ERROR: 'tc' not found` - the image was not rebuilt; see Pre-flight Step 1.
 
-If `tc qdisc add` fails with `RTNETLINK answers: Operation not permitted` — Stage 1
+If `tc qdisc add` fails with `RTNETLINK answers: Operation not permitted` - Stage 1
 capability propagation failed. Run cleanup, set `payments.chaosMode.runAsRoot: true`
 in `values-chaos.yaml`, re-run `helm upgrade`, and restart from Step 1.
 
-### Step 5 — Confirm injection in-pod
+### Step 5 - Confirm injection in-pod
 
 ```bash
 POD=$(kubectl get pods -n resilience-lab \
@@ -232,34 +232,34 @@ kubectl exec -n resilience-lab "$POD" -- tc qdisc show dev eth0
 qdisc netem 8001: root refcnt 2 limit 1000 delay 300ms
 ```
 
-Any output without `netem` and `delay 300ms` is a failed injection — do not proceed.
+Any output without `netem` and `delay 300ms` is a failed injection - do not proceed.
 
-### Step 6 — Monitor (10 minutes, sample at T+2m, T+5m, T+10m)
+### Step 6 - Monitor (10 minutes, sample at T+2m, T+5m, T+10m)
 
 Record the `value[1]` field from each query at each sample time:
 
 ```bash
-# p95 latency — expect ≥ 300ms above baseline
+# p95 latency - expect ≥ 300ms above baseline
 curl -sG 'http://localhost:9090/api/v1/query' \
   --data-urlencode 'query=histogram_quantile(0.95, rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="payments_service"}[5m])) * 1000' \
   | python3 -m json.tool
 
-# Error rate — expect < 0.01
+# Error rate - expect < 0.01
 curl -sG 'http://localhost:9090/api/v1/query' \
   --data-urlencode 'query=sum(rate(http_requests_total{job="resilience-lab-api",status=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{job="resilience-lab-api"}[5m])),0.001)' \
   | python3 -m json.tool
 
-# Retry rate — actual: high (300ms > 0.2s per_try_timeout triggers retries on every delayed connection)
+# Retry rate - actual: high (300ms > 0.2s per_try_timeout triggers retries on every delayed connection)
 curl -sG 'http://localhost:9090/api/v1/query' \
   --data-urlencode 'query=rate(envoy_cluster_upstream_rq_retry{envoy_cluster_name="payments_service"}[5m])' \
   | python3 -m json.tool
 
-# Outlier ejections — expect 0
+# Outlier ejections - expect 0
 curl -sG 'http://localhost:9090/api/v1/query' \
   --data-urlencode 'query=rate(envoy_cluster_outlier_detection_ejections_total{envoy_cluster_name="payments_service"}[5m])' \
   | python3 -m json.tool
 
-# Alert state — expect "result": [] at every sample
+# Alert state - expect "result": [] at every sample
 curl -sG 'http://localhost:9090/api/v1/query' \
   --data-urlencode 'query=ALERTS{alertname=~"HighErrorRate|APIDown|PrometheusTargetDown",alertstate="firing"}' \
   | python3 -m json.tool
@@ -267,14 +267,14 @@ curl -sG 'http://localhost:9090/api/v1/query' \
 
 ## Cleanup Steps
 
-### Step 1 — Stop traffic loop
+### Step 1 - Stop traffic loop
 
 ```bash
 jobs     # identify the background loop
 kill %<job-number>
 ```
 
-### Step 2 — Remove tc injection
+### Step 2 - Remove tc injection
 
 ```bash
 ./scripts/fault-inject.sh cleanup
@@ -294,7 +294,7 @@ kubectl exec -n resilience-lab "$POD" -- tc qdisc show dev eth0
 # Must return only: qdisc noqueue 0: root refcnt 2  (or pfifo_fast)
 ```
 
-### Step 3 — Restore secure security baseline
+### Step 3 - Restore secure security baseline
 
 ```bash
 helm upgrade resilience-lab deploy/helm \
@@ -305,7 +305,7 @@ helm upgrade resilience-lab deploy/helm \
 kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 ```
 
-### Step 4 — Verify security context restored
+### Step 4 - Verify security context restored
 
 ```bash
 kubectl get pod -n resilience-lab \
@@ -320,7 +320,7 @@ kubectl get pod -n resilience-lab \
 # NET_ADMIN must be absent from the output.
 ```
 
-### Step 5 — Verify latency returned to baseline (T+5m after cleanup)
+### Step 5 - Verify latency returned to baseline (T+5m after cleanup)
 
 ```bash
 curl -sG 'http://localhost:9090/api/v1/query' \
@@ -329,7 +329,7 @@ curl -sG 'http://localhost:9090/api/v1/query' \
 # Expected: value within 20% of pre-injection baseline
 ```
 
-### Step 6 — Teardown port-forwards and temp files
+### Step 6 - Teardown port-forwards and temp files
 
 ```bash
 pkill -f 'kubectl port-forward'
@@ -340,7 +340,7 @@ rm -f /tmp/baseline-envoy-stats.txt /tmp/injected-envoy-stats.txt
 
 **Date:** 2026-06-22
 **Operator:** lotoos0
-**Stage used:** Stage 2 (runAsRoot: true — confirmed required on this cluster)
+**Stage used:** Stage 2 (runAsRoot: true - confirmed required on this cluster)
 
 | Metric | Baseline | During injection | Post-cleanup |
 |--------|----------|-----------------|--------------|
@@ -353,7 +353,7 @@ rm -f /tmp/baseline-envoy-stats.txt /tmp/injected-envoy-stats.txt
 > **p95 latency note:** `envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="payments_service"}`
 > showed `[]` (no data) during the experiment because the histogram only tracks completed requests;
 > timed-out requests (`per_try_timeout`) are not included in the histogram buckets.
-> Connection establishment latency WAS elevated — `upstream_cx_connect_ms P50 ≈ 305ms` (baseline: 0).
+> Connection establishment latency WAS elevated - `upstream_cx_connect_ms P50 ≈ 305ms` (baseline: 0).
 
 **tc qdisc show output during injection (verbatim):**
 ```
@@ -383,7 +383,7 @@ upstream_cx_connect_ms: P50(305ms) P99(310ms)
 
 # Container-level:
 {"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}
-# NET_ADMIN absent — confirmed.
+# NET_ADMIN absent - confirmed.
 ```
 
 **Outcome:** PASS (SLO criteria met) with UNEXPECTED FINDING (see below)
@@ -397,12 +397,12 @@ not only responses to Envoy. This includes packets sent by the payments
 application to Redis, PostgreSQL, or any other backend.
 
 Timeline with 300ms netem applied to payments:
-1. Envoy → payments TCP SYN (no delay — ingress to payments pod)
+1. Envoy → payments TCP SYN (no delay - ingress to payments pod)
 2. payments → Envoy SYN-ACK (delayed 300ms)  ← connection establishment: ~305ms
 3. Envoy → payments HTTP request (no delay)
 4. payments → Redis: every TCP packet delayed 300ms each way (Redis replies arrive
    normally, but payments' ACKs and queries are all delayed)
-5. Connection establishment alone takes ~300ms — exceeding `per_try_timeout: 0.2s`
+5. Connection establishment alone takes ~300ms - exceeding `per_try_timeout: 0.2s`
    immediately, before any Redis round-trip completes
 6. per_try_timeout: 0.2s fires → retry × 2 → retry_limit_exceeded → 504 to client
 
@@ -429,7 +429,7 @@ sum(rate(envoy_cluster_upstream_rq_5xx{envoy_cluster_name="payments_service"}[5m
 - `tc netem delay 300ms` applied via script: ✅ CONFIRMED
 - System does not breach SLOs (no alerts fired): ✅ CONFIRMED
 - Root cause of 504s is Envoy's `per_try_timeout: 0.2s` being exceeded by the 300ms
-  injected connection delay — NOT a fundamental SLO breach.
+  injected connection delay - NOT a fundamental SLO breach.
 
 ## PASS / FAIL Criteria
 
@@ -449,7 +449,7 @@ sum(rate(envoy_cluster_upstream_rq_5xx{envoy_cluster_name="payments_service"}[5m
 | P11 | Security context restored | ✅ PASS | `runAsUser:1000`, `runAsNonRoot:true`, `capabilities.drop:[ALL]`, no NET_ADMIN |
 | P12 | Latency returns to baseline | ✅ PASS | Connection times returned to ~0ms after cleanup |
 
-**Overall: PASS on SLO criteria (P1, P2, P4, P5, P6, P7, P9–P12). Unexpected finding on P4b and P8 — see "Unexpected Finding" section above.**
+**Overall: PASS on SLO criteria (P1, P2, P4, P5, P6, P7, P9-P12). Unexpected finding on P4b and P8 - see "Unexpected Finding" section above.**
 
 ## Rollback (if experiment goes wrong)
 
@@ -458,7 +458,7 @@ sum(rate(envoy_cluster_upstream_rq_5xx{envoy_cluster_name="payments_service"}[5m
 helm rollback resilience-lab -n resilience-lab
 kubectl rollout status deployment/resilience-lab-payments -n resilience-lab
 
-# If tc was injected but cleanup fails — manual per-pod removal
+# If tc was injected but cleanup fails - manual per-pod removal
 kubectl exec -n resilience-lab "$POD" -- tc qdisc del dev eth0 root
 kubectl exec -n resilience-lab "$POD" -- tc qdisc show dev eth0
 
@@ -470,15 +470,15 @@ helm upgrade resilience-lab deploy/helm -n resilience-lab -f deploy/helm/values-
 ## Notes on Metrics Coverage
 
 The p95 latency metric (`envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name="payments_service"}`)
-measures Envoy's view of upstream request duration to the payments cluster — the full
+measures Envoy's view of upstream request duration to the payments cluster - the full
 round trip from Envoy to payments and back, which includes the injected 300ms.
 Payments exposes `/metrics` via `prometheus-fastapi-instrumentator`, but those are
-HTTP-level counters — there is no direct per-pod latency metric from the payments
+HTTP-level counters - there is no direct per-pod latency metric from the payments
 process itself at the network layer where the delay is injected.
 
 ## Change History
 
 | Date | Author | Changes |
 |------|--------|---------|
-| 2026-06-21 | lotoos0 | Created — issue #40 chaos latency experiment |
+| 2026-06-21 | lotoos0 | Created - issue #40 chaos latency experiment |
 | 2026-06-22 | lotoos0 | Ran experiment (Stage 2); documented findings: netem delays all pod egress (incl. Redis); SLO alerts did not fire; SLO coverage gap identified |

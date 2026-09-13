@@ -82,6 +82,9 @@ k3d cluster create resilience-cluster --api-port 6550 --servers 1 --agents 2 --p
 make helm-deps
 make helm-up-dev
 
+# Envoy isn't part of the Helm chart yet — apply it separately for retries/circuit breaker
+kubectl apply -f deploy/envoy/
+
 # Verify
 kubectl get pods -n resilience-lab
 
@@ -183,7 +186,7 @@ Coding standards, project structure, and onboarding: [docs/DEVELOPMENT.md](docs/
 | [Security](docs/security.md) | Security baseline, CVE patching, Trivy |
 | [M3 Resilience Patterns](docs/M3_RESILIENCE_PATTERNS.md) | Rate limiting, bulkhead, load tests |
 | [Runbooks](docs/runbooks/README.md) | Operational runbooks: chaos, observability, troubleshooting |
-| [Retrospectives](docs/RETROSPECTIVES.md) | Milestone retrospectives |
+| [Postmortem](docs/postmortem.md) | v0.1.0 retrospective — what worked, what didn't, what's next |
 | [Contributing](CONTRIBUTING.md) | PR process, commit format |
 
 ---

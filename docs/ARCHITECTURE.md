@@ -76,7 +76,7 @@ flowchart TB
 | API Service | Payment entry point, rate limiting | Deployed |
 | Payments Service | Payment processing, fault injection | Deployed |
 | Redis | Rate-limit sliding window counters | Deployed |
-| PostgreSQL | Future persistence layer | Helm chart configured, not yet wired |
+| PostgreSQL | Future persistence layer | Not deployed — orphaned `values.yaml` config, no chart dependency |
 | Prometheus + Grafana + Loki | Observability stack | Deployed |
 | Alertmanager | Alert routing and notifications | Deployed |
 
@@ -280,8 +280,10 @@ values for features I'd explicitly turn off anyway.
 ### PostgreSQL
 
 Not used. The driver (`psycopg2-binary`) is in `requirements.txt` and `DATABASE_URL`
-appears in the Helm values, but no service code connects to a database. The PostgreSQL
-subchart in `Chart.yaml` is a placeholder for the next iteration.
+appears in the Helm values, but no service code connects to a database. `values.yaml`
+even has a `postgresql:` config block (`enabled: true`, auth, persistence) shaped like
+a Bitnami subchart values override — except there's no PostgreSQL entry in `Chart.yaml`
+`dependencies`, so that block does nothing. Leftover scaffolding, not a placeholder.
 
 Current state: `payments_store: Dict[str, Dict[str, Any]]` in Payments service —
 an in-memory dict that lives until the pod restarts. See [ADR-004](#adr-004-in-memory-storage-in-v010).
@@ -381,7 +383,7 @@ Tagged by git SHA on every push; additionally tagged `v*` on version tags.
 
 3 ServiceMonitors (API, Payments, Envoy admin port).
 
-Recording rules in `deploy/prometheus/rules.yaml` — 3 groups, 18 rules total:
+Recording rules in `deploy/prometheus/rules.yaml` — 3 groups, 14 rules total:
 
 **`envoy_metrics`**: request rate per cluster, 5xx error rate, p95 latency,
 active upstream connections, retry rate, outlier ejection rate, bulkhead overflow rate.
@@ -508,8 +510,9 @@ would have been real work that delayed the things I actually wanted to learn.
 **Consequences**:
 - Payments data is lost on every pod restart or scale event
 - This is fine for chaos testing (I don't care about specific payment IDs)
-- The PostgreSQL Helm dependency is wired and the driver is installed — the connection
-  code is the only missing piece
+- The driver (`psycopg2-binary`) is installed and `DATABASE_URL` is wired into env vars,
+  but there's no actual PostgreSQL chart dependency or connection code yet — both are
+  still missing, not just the connection code
 
 **Migration plan**: Add SQLAlchemy async + Alembic, create the `payments` table,
 switch `payments_store` dict to a repository pattern. The API surface doesn't change.

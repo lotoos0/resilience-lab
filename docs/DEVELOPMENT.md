@@ -7,19 +7,10 @@
 ---
 
 > **Author's note:** This guide covers local development from zero to running tests.
-> The project has two FastAPI services, four infrastructure containers, a full
-> Kubernetes/Helm deployment path, and chaos-engineering scripts. If you just
-> want to run tests quickly — jump straight to [Getting Started](#getting-started).
-
-> **What this guide adds (vs. the November 2025 version):**
-> The original doc had 8 sections, 3 development paths, and 0 mentions of Kubernetes.
-> This version has **12 sections** and covers **3 dev paths** (venv / full deps / Docker-only),
-> **24 documented `make` targets**, a full **Kubernetes & Helm** section that was
-> completely missing, **k6 load tests** in `tests/load/`, a corrected branch strategy
-> (`develop` → `main` flow, not flat), and removed two stale placeholders
-> (`test_payments.py (future)` and the stale M1 Alembic migration block).
-> Written because the project grew from a two-service Docker Compose demo into a
-> full resilience platform with Envoy, Traefik, Prometheus, and Loki — and the doc hadn't kept up.
+> The project started as a two-service Docker Compose demo and grew a Helm/Envoy/
+> Prometheus/Loki path on top, so this covers both plus the venv / full-deps /
+> Docker-only ways to run tests locally. If you just want to run tests quickly —
+> jump straight to [Getting Started](#getting-started).
 
 ---
 
@@ -368,7 +359,7 @@ def test_payment_flow():
 
 ### Load Tests (k6)
 
-Load tests live in `tests/load/` and target the rate-limiter (Redis-backed, 10 req/min
+Load tests live in `tests/load/` and target the rate-limiter (Redis-backed, 60 req/min
 per tenant by default). Requires k6 installed locally:
 
 ```bash
@@ -404,18 +395,23 @@ make rollback-1     # Roll back to revision 1 (replace 1 with target revision)
 
 ### Stack Overview
 
-After `make helm-up-dev`, the cluster has:
+`make helm-up-dev` only deploys `api`, `payments`, and `redis` (plus HPAs, PDBs,
+NetworkPolicies, and the Grafana dashboard ConfigMaps). Everything else on the full
+resilience-testing stack is applied separately:
 
-| Component | Purpose |
-|-----------|---------|
-| `api` | FastAPI gateway, port 8000 |
-| `payments` | FastAPI payments service, port 8001 |
-| `postgres` | Primary data store |
-| `redis` | Rate-limiter backend |
-| `envoy` | Front-proxy with retry/timeout/circuit-breaker policies |
-| `traefik` | Ingress controller |
-| `prometheus` | Metrics scraping |
-| `loki` | Log aggregation |
+| Component | Purpose | How it gets there |
+|-----------|---------|--------------------|
+| `api` | FastAPI gateway, port 8000 | Helm chart |
+| `payments` | FastAPI payments service, port 8001 | Helm chart |
+| `redis` | Rate-limiter backend | Helm chart |
+| `envoy` | Front-proxy with retry/timeout/circuit-breaker policies | `kubectl apply -f deploy/envoy/` |
+| `traefik` | Ingress controller | `deploy/traefik/ingressroute.yaml` (+ Traefik CRDs/controller) |
+| `prometheus` | Metrics scraping | kube-prometheus-stack, separately |
+| `loki` | Log aggregation | `grafana/loki-stack`, separately |
+
+There's no `postgres` here — the Helm chart has a `postgresql:` values block but no
+actual chart dependency wired up, so nothing gets deployed from it. See
+[ARCHITECTURE.md](./ARCHITECTURE.md#adr-004-in-memory-storage-in-v010) for why.
 
 The `deploy/` directory structure:
 

@@ -24,8 +24,9 @@ This is the initial release, so everything is new. The highlights by layer:
 **Services**
 - **API service** — FastAPI, Python 3.11, per-tenant rate limiting backed by Redis,
   Prometheus metrics via `prometheus-fastapi-instrumentator`
-- **Payments service** — FastAPI, PostgreSQL-backed, structured logging with tenant
-  context per request
+- **Payments service** — FastAPI, in-memory storage (PostgreSQL is wired in
+  `values.yaml`/`requirements.txt` but not connected — see ADR-004), fault injection
+  via `FAIL_MODE`/`SLOW_MODE`
 
 **Networking & resilience**
 - **Envoy front-proxy** — retry with per-try timeout (200ms) and exponential backoff,
@@ -34,9 +35,9 @@ This is the initial release, so everything is new. The highlights by layer:
 - **HPA + PDB** — auto-scaling and disruption budget validated under load
 
 **Observability**
-- **Prometheus** — ServiceMonitors for API and Envoy, recording rules for all key
-  signals (request rate, error rate, p95 latency, retry rate, ejection rate, 429s,
-  bulkhead overflow)
+- **Prometheus** — ServiceMonitors for API, Payments, and Envoy, recording rules for
+  all key signals (request rate, error rate, p95 latency, retry rate, ejection rate,
+  429s, bulkhead overflow)
 - **Alert rules** — HighErrorRate, APIDown, PrometheusTargetDown
 - **Grafana dashboards** — System Overview and Traffic & Latency (panels for retries,
   outlier ejections, rate-limit denials, bulkhead overflow, p95 latency)
